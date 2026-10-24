@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roost settings</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { padding: 32px 16px 64px; }
+    main { max-width: 760px; margin: 0 auto; display: grid; gap: 18px; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    header img { width: 40px; height: 40px; }
+    header h1 { font-size: 22px; }
+    header p { margin: 2px 0 0; }
+    section.card { padding: 18px; display: grid; gap: 14px; }
+    section h2 { font-size: 15px; }
+    .field { display: grid; grid-template-columns: 200px 1fr; gap: 6px 16px; align-items: start; }
+    .field > label { font-weight: 600; padding-top: 7px; }
+    .field .help { grid-column: 2; color: var(--muted); font-size: 12px; margin-top: -2px; }
+    .switch { display: flex; gap: 10px; align-items: flex-start; }
+    .switch input { margin-top: 3px; accent-color: var(--accent); width: 15px; height: 15px; }
+    .switch b { font-weight: 600; display: block; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; }
+    .msg { font-size: 12.5px; }
+    .msg.ok { color: var(--ok); }
+    .msg.err { color: var(--err); }
+    #parents { display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+    #parents button { text-align: left; font-weight: 500; }
+    #log { font-family: var(--mono); font-size: 11.5px; max-height: 320px; overflow: auto; display: grid; gap: 2px; }
+    #log .e { color: var(--err); }
+    #log .w { color: var(--warn); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 640px) {
+      .field { grid-template-columns: 1fr; }
+      .field .help { grid-column: 1; }
+      .field > label { padding-top: 0; }
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="../icons/icon128.png" alt="" />
+    <div>
+      <h1>Roost</h1>
+      <p class="muted">Your X bookmarks, archived in Notion — threads, media and all.</p>
+    </div>
+  </header>
+
+  <section class="card" id="notion">
+    <h2>1 · Notion</h2>
+    <div class="field">
+      <label for="token">Integration token</label>
+      <div class="row">
+        <input id="token" type="password" placeholder="ntn_… or secret_…" autocomplete="off" />
+        <button id="saveToken">Save</button>
+      </div>
+      <div class="help">Create a free internal integration at <a href="https://www.notion.so/profile/integrations" target="_blank">notion.so/profile/integrations</a> and paste its secret. <span id="tokenMsg" class="msg"></span></div>
+    </div>
+    <div class="field">
+      <label>Database</label>
+      <div>
+        <div id="dbInfo" class="muted">Not connected</div>
+        <div class="actions" style="margin-top: 8px">
+          <button id="showCreate">Create new database…</button>
+          <button id="showUse">Use existing…</button>
+        </div>
+      </div>
+    </div>
+    <div id="createBox" class="card" hidden>
+      <div class="row"><input id="parentQuery" type="text" placeholder="Search a parent page (the integration must have access)" /><button id="searchParents">Search</button></div>
+      <div id="parents"></div>
+      <div class="muted msg">Tip: open the parent page in Notion → ••• → Connections → add your integration, so it shows up here.</div>
+    </div>
+    <div id="useBox" class="card" hidden>
+      <div class="row"><input id="dbLink" type="text" placeholder="Paste the database link or ID" /><button id="useDb">Connect</button></div>
+      <div class="muted msg">Missing columns are added automatically.</div>
+    </div>
+    <div id="dbMsg" class="msg"></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Sync</h2>
+    <div class="field">
+      <label for="interval">Check for new bookmarks</label>
+      <select id="interval">
+        <option value="5">Every 5 minutes</option>
+        <option value="15">Every 15 minutes</option>
+        <option value="30">Every 30 minutes</option>
+        <option value="60">Every hour</option>
+        <option value="180">Every 3 hours</option>
+        <option value="720">Every 12 hours</option>
+      </select>
+      <div class="help">New bookmarks made on x.com in this browser are archived within seconds anyway.</div>
+    </div>
+    <div class="field">
+      <label>Full archive</label>
+      <div>
+        <div id="bfInfo" class="muted"></div>
+        <div class="actions" style="margin-top: 8px">
+          <button id="bfStart" class="primary">Start</button>
+          <button id="bfStop">Stop</button>
+          <button id="bfRestart">Re-scan everything</button>
+        </div>
+      </div>
+      <div class="help">Walks your whole bookmark list. Already-archived posts are skipped, so re-scanning never creates duplicates.</div>
+    </div>
+    <div class="field">
+      <label>Duplicate protection</label>
+      <div>
+        <div id="indexInfo" class="muted"></div>
+        <div class="actions" style="margin-top: 8px"><button id="rebuild">Rebuild index from Notion</button></div>
+      </div>
+      <div class="help">Roost remembers every archived post id. Rebuilding re-reads the database (useful on a new browser).</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3 · What to keep</h2>
+    <div class="grid2">
+      <label class="switch"><input type="checkbox" id="archiveMedia" /><span><b>Archive media in Notion</b><span class="muted">Copies photos, videos and GIFs into Notion, so they survive deletion on X.</span></span></label>
+      <label class="switch"><input type="checkbox" id="replyContext" /><span><b>Keep reply context</b><span class="muted">For replies, also save the post being replied to.</span></span></label>
+      <label class="switch"><input type="checkbox" id="rawJson" /><span><b>Include raw data</b><span class="muted">A collapsed JSON copy of everything Roost captured.</span></span></label>
+      <label class="switch"><input type="checkbox" id="notify" /><span><b>Notifications</b><span class="muted">For manual saves and problems that need you.</span></span></label>
+    </div>
+    <div class="field">
+      <label for="threads">Threads</label>
+      <select id="threads">
+        <option value="smart">Smart — unroll posts that look like threads</option>
+        <option value="always">Always check for a thread (slower)</option>
+        <option value="off">Never (tick “Unroll thread” in Notion to fetch one)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="maxVideo">Max video size</label>
+      <div class="row"><input id="maxVideo" type="number" min="5" max="5000" step="5" style="width: 110px" /><span class="muted">MB — larger videos keep the best quality that fits.</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4 · Auto-tags</h2>
+    <textarea id="rules" spellcheck="false" placeholder="AI: openai, anthropic, llm, @karpathy, arxiv.org, /\bgpt-?\d/i&#10;Design: figma, dribbble.com, type:Photo&#10;Read later: type:Article, type:Thread"></textarea>
+    <div class="muted msg">One rule per line: <span class="mono">Tag: matcher, matcher…</span> — a keyword, <span class="mono">@handle</span>, a domain, <span class="mono">/regex/i</span> or <span class="mono">type:Video</span>. Tags go to the “Tags” column.</div>
+    <div class="row"><button id="saveRules">Save rules</button><span id="rulesMsg" class="msg"></span></div>
+  </section>
+
+  <section class="card">
+    <h2>5 · X connection</h2>
+    <dl class="kv" id="xInfo"></dl>
+    <label class="switch"><input type="checkbox" id="removeFromX" /><span><b>Remove from X bookmarks after archiving</b><span class="muted">Keeps your X bookmarks at inbox-zero. Only removes posts that were archived successfully.</span></span></label>
+    <div class="actions"><button id="capture">Refresh X connection</button><button id="resetCapture" class="danger">Forget learned requests</button></div>
+    <div class="muted msg">Roost learns how to call X from your own x.com tabs (no passwords, no paid API). If nothing was learned yet, it briefly opens x.com in a background tab.</div>
+  </section>
+
+  <section class="card" id="activity">
+    <div class="row"><h2>Activity</h2><span class="spacer"></span><button id="copyLog">Copy</button></div>
+    <div id="log"></div>
+  </section>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>

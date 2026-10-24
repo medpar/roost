@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roost — X bookmarks to Notion</title>
+  <meta name="description" content="Free Brave/Chrome extension that archives your X (Twitter) bookmarks, threads and media into Notion, so nothing is lost when posts get deleted." />
+  <link rel="icon" href="icon.png" />
+  <style>
+    :root {
+      --bg: #fbfaf8; --surface: #ffffff; --border: #e7e4de; --text: #1b1a18; --muted: #6c6a64;
+      --accent: #e8590c; --accent-soft: #fdeee4; --code: #f3f1ec;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #161615; --surface: #1e1e1c; --border: #31302d; --text: #eeede9; --muted: #a09e97; --accent: #ff7a33; --accent-soft: #2e1d13; --code: #262624; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+    nav { display: flex; align-items: center; gap: 10px; padding: 20px 0; font-weight: 650; }
+    nav img { width: 28px; height: 28px; }
+    nav .sp { flex: 1; }
+    nav a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; }
+    nav a:hover { color: var(--text); }
+    .hero { padding: 64px 0 40px; display: grid; gap: 22px; justify-items: start; }
+    .hero h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.04; letter-spacing: -0.035em; margin: 0; max-width: 14ch; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); margin: 0; max-width: 56ch; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 10px; font-weight: 650; text-decoration: none; border: 1px solid var(--border); color: var(--text); background: var(--surface); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13.5px; color: var(--muted); }
+    .chips span { border: 1px solid var(--border); border-radius: 99px; padding: 3px 11px; background: var(--surface); }
+    section { padding: 36px 0; }
+    h2 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 16.5px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .card .ico { font-size: 22px; display: block; margin-bottom: 8px; }
+    ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    ol.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+    ol.steps li::before { content: counter(s); width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; }
+    code { background: var(--code); padding: 2px 6px; border-radius: 6px; font-size: 14px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+    .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+    .how div { padding: 18px 20px; border-right: 1px solid var(--border); }
+    .how div:last-child { border-right: 0; }
+    .how b { display: block; margin-bottom: 4px; }
+    .how span { color: var(--muted); font-size: 14.5px; }
+    footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 24px; }
+    @media (max-width: 640px) { .how div { border-right: 0; border-bottom: 1px solid var(--border); } .hero { padding-top: 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <img src="icon.png" alt="" /> Roost
+      <span class="sp"></span>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/medpar/roost">GitHub</a>
+    </nav>
+
+    <header class="hero">
+      <h1>Your X bookmarks, <em>safe in Notion.</em></h1>
+      <p>Roost is a tiny browser extension that archives every post you bookmark on X, with threads, photos and videos, into a Notion database. Deleted posts stay readable. Free, local, no API keys.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/medpar/roost/releases/latest">⬇ Download for Brave / Chrome</a>
+        <a class="btn" href="https://github.com/medpar/roost">View source</a>
+      </div>
+      <div class="chips"><span>~130 KB</span><span>Zero dependencies</span><span>No servers</span><span>MIT licensed</span></div>
+    </header>
+
+    <section id="features">
+      <h2>Everything you saved, kept for good</h2>
+      <div class="grid">
+        <div class="card"><span class="ico">🗄️</span><h3>Full history</h3><p>Backfills your entire bookmark list once, then keeps up automatically. Resumable across restarts and rate limits.</p></div>
+        <div class="card"><span class="ico">⚡</span><h3>Instant capture</h3><p>Bookmark a post on x.com and it lands in Notion seconds later. Background sync runs every 30 minutes too.</p></div>
+        <div class="card"><span class="ico">🛡️</span><h3>Deletion-proof</h3><p>Text, author, stats, links and copies of photos and videos live in Notion, not just links back to X.</p></div>
+        <div class="card"><span class="ico">🧵</span><h3>Whole threads</h3><p>Unrolls the author's full thread, keeps reply context, and lets you tick “Unroll thread” in Notion for any row.</p></div>
+        <div class="card"><span class="ico">🎯</span><h3>No duplicates</h3><p>One page per post, guaranteed. Re-scan as often as you like.</p></div>
+        <div class="card"><span class="ico">🏷️</span><h3>Auto-tags & views</h3><p>Keyword, author, domain and regex rules fill a Tags column. Gallery, Unread, Threads and Media views are ready to use.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it works</h2>
+      <div class="how">
+        <div><b>Uses your session</b><span>Reads bookmarks through x.com's own web API with your login. No paid X API.</span></div>
+        <div><b>Learns, doesn't guess</b><span>Records the request format your x.com tabs use and replays it, so X changes don't break it.</span></div>
+        <div><b>Notion fetches media</b><span>Photos and videos go straight from X's CDN into Notion. Your browser downloads nothing.</span></div>
+        <div><b>Sleeps when idle</b><span>An event-driven service worker with no content scripts. It only wakes to sync.</span></div>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2>Install in two minutes</h2>
+      <ol class="steps">
+        <li><div>Download the <a href="https://github.com/medpar/roost/releases/latest">latest release zip</a> and unzip it.</div></li>
+        <li><div>Open <code>brave://extensions</code> or <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and choose the folder.</div></li>
+        <li><div>Create a free internal integration at <a href="https://www.notion.so/profile/integrations">notion.so/profile/integrations</a>, share a page with it, then paste the secret in Roost's settings and click <b>Create new database</b>.</div></li>
+        <li><div>Stay logged in to x.com. Roost archives everything and keeps syncing.</div></li>
+      </ol>
+    </section>
+
+    <footer>
+      Roost is open source (MIT) · <a href="https://github.com/medpar/roost">github.com/medpar/roost</a> · Not affiliated with X Corp. or Notion Labs.
+    </footer>
+  </div>
+</body>
+</html>

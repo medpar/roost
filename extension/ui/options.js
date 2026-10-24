@@ -1,0 +1,208 @@
+import { $, ago, el, explain, fmt, send, until } from './common.js';
+
+let status = null;
+
+const typedToken = () => $('token').value.trim() || undefined;
+
+function setMsg(id, text, kind = '') {
+  $(id).className = `msg ${kind}`;
+  $(id).textContent = text;
+}
+
+async function load() {
+  status = await send('status');
+  const { settings: s, state, capture, loggedIn } = status;
+
+  $('token').placeholder = status.hasToken ? `Saved (${s.notionToken}) — paste to replace` : 'ntn_… or secret_…';
+  $('dbInfo').replaceChildren(
+    s.dataSourceId
+      ? el('span', {}, 'Connected to ', el('a', { href: s.databaseUrl || '#', target: '_blank' }, el('strong', {}, s.databaseTitle || 'database')), ' ✓')
+      : 'Not connected',
+  );
+
+  $('interval').value = String(s.intervalMin);
+  for (const k of ['archiveMedia', 'replyContext', 'rawJson', 'notify', 'removeFromX']) $(k).checked = !!s[k];
+  $('threads').value = s.threads;
+  $('maxVideo').value = s.maxVideoMB;
+  if (document.activeElement !== $('rules')) $('rules').value = s.rules || '';
+
+  const bf = state.backfill;
+  const bfText = {
+    idle: 'Not started yet.',
+    running: `Running — ${fmt(bf.scanned)} checked, ${fmt(bf.saved)} added so far.`,
+    paused: `Paused — ${fmt(bf.scanned)} checked, ${fmt(bf.saved)} added${bf.pausedUntil ? `, resumes in ${until(bf.pausedUntil)}` : ''}.`,
+    stopped: `Stopped — ${fmt(bf.scanned)} checked, ${fmt(bf.saved)} added. Resume any time.`,
+    error: `Interrupted — ${fmt(bf.scanned)} checked. It retries automatically.`,
+    done: `Complete ${ago(bf.finishedAt)} — ${fmt(bf.scanned)} bookmarks checked, ${fmt(bf.saved)} added.`,
+  }[bf.status];
+  $('bfInfo').textContent = bfText;
+  $('bfStart').textContent = ['paused', 'stopped', 'error'].includes(bf.status) ? 'Resume' : 'Start';
+  $('bfStart').disabled = bf.status === 'running' || !s.dataSourceId;
+  $('bfStop').disabled = bf.status !== 'running';
+  $('bfRestart').disabled = !s.dataSourceId;
+  $('indexInfo').textContent = `${fmt(state.total)} posts known${state.indexBuiltAt ? ` · rebuilt ${ago(state.indexBuiltAt)}` : ''}.`;
+
+  const opLine = (op) => (capture[op] ? `learned ${ago(capture[op])}` : 'not learned yet');
+  const limits = Object.entries(capture.rateLimits || {}).map(([k, v]) => `${k.slice(3)} until ${new Date(v).toLocaleTimeString()}`);
+  $('xInfo').replaceChildren(
+    el('dt', {}, 'Session'), el('dd', {}, loggedIn ? 'Logged in ✓' : el('span', { class: 'msg err' }, 'Not logged in to x.com in this browser')),
+    el('dt', {}, 'Bookmarks request'), el('dd', {}, opLine('Bookmarks')),
+    el('dt', {}, 'Thread request'), el('dd', {}, opLine('TweetDetail')),
+    ...(limits.length ? [el('dt', {}, 'Rate limited'), el('dd', {}, limits.join(', '))] : []),
+  );
+
+  $('log').replaceChildren(
+    ...state.log.map((l) =>
+      el('div', { class: l.level === 'error' ? 'e' : l.level === 'warn' ? 'w' : '' }, `${new Date(l.t).toLocaleString()}  ${l.msg}${l.extra ? ' — ' + l.extra : ''}`),
+    ),
+  );
+  if (!state.log.length) $('log').append(el('div', { class: 'muted' }, 'Nothing yet.'));
+}
+
+async function saveSettings(patch) {
+  await send('saveSettings', { patch });
+}
+
+// ---- Notion ----
+
+$('saveToken').onclick = async () => {
+  const token = typedToken();
+  if (!token) return setMsg('tokenMsg', 'Paste a token first.', 'err');
+  setMsg('tokenMsg', 'Checking…');
+  try {
+    const r = await send('testNotion', { token });
+    await send('setToken', { token });
+    $('token').value = '';
+    setMsg('tokenMsg', `Connected to workspace “${r.workspace}” as ${r.bot} ✓`, 'ok');
+    load();
+  } catch (e) {
+    setMsg('tokenMsg', e.message, 'err');
+  }
+};
+
+$('showCreate').onclick = () => {
+  $('createBox').hidden = !$('createBox').hidden;
+  $('useBox').hidden = true;
+  if (!$('createBox').hidden) $('searchParents').click();
+};
+$('showUse').onclick = () => {
+  $('useBox').hidden = !$('useBox').hidden;
+  $('createBox').hidden = true;
+};
+
+async function createIn(parentId, label) {
+  setMsg('dbMsg', `Creating database in ${label}…`);
+  try {
+    const r = await send('createDatabase', { token: typedToken(), parentId, title: 'X Bookmarks' });
+    setMsg('dbMsg', 'Database created ✓ — archiving your bookmarks now.', 'ok');
+    $('createBox').hidden = true;
+    if (r.database?.url) window.open(r.database.url, '_blank');
+    load();
+  } catch (e) {
+    setMsg('dbMsg', e.message, 'err');
+  }
+}
+
+$('searchParents').onclick = async () => {
+  $('parents').replaceChildren(el('div', { class: 'muted' }, 'Searching…'));
+  try {
+    const { pages } = await send('listParents', { token: typedToken(), query: $('parentQuery').value.trim() });
+    $('parents').replaceChildren(
+      el('button', { onclick: () => createIn(null, 'the workspace top level') }, '⤒ Workspace top level (if the integration allows it)'),
+      ...pages.filter((p) => p.parent !== 'data_source_id' && p.parent !== 'database_id').map((p) => el('button', { onclick: () => createIn(p.id, `“${p.title}”`) }, `📄 ${p.title}`)),
+    );
+  } catch (e) {
+    $('parents').replaceChildren(el('div', { class: 'msg err' }, e.message));
+  }
+};
+$('parentQuery').onkeydown = (e) => e.key === 'Enter' && $('searchParents').click();
+
+$('useDb').onclick = async () => {
+  setMsg('dbMsg', 'Connecting…');
+  try {
+    await send('useDatabase', { token: typedToken(), id: $('dbLink').value.trim() });
+    setMsg('dbMsg', 'Connected ✓ — archiving your bookmarks now.', 'ok');
+    $('useBox').hidden = true;
+    load();
+  } catch (e) {
+    setMsg('dbMsg', e.message, 'err');
+  }
+};
+
+// ---- Sync ----
+
+$('interval').onchange = () => saveSettings({ intervalMin: Number($('interval').value) });
+$('bfStart').onclick = () => send('backfill').then(load);
+$('bfStop').onclick = () => send('stopBackfill').then(load);
+$('bfRestart').onclick = () => send('backfill', { restart: true }).then(load);
+$('rebuild').onclick = async () => {
+  $('rebuild').disabled = true;
+  $('rebuild').textContent = 'Rebuilding…';
+  try {
+    const r = await send('rebuildIndex');
+    $('rebuild').textContent = `Found ${fmt(r.found)} posts ✓`;
+  } catch (e) {
+    $('rebuild').textContent = explain(e);
+  }
+  setTimeout(() => {
+    $('rebuild').textContent = 'Rebuild index from Notion';
+    $('rebuild').disabled = false;
+  }, 3000);
+  load();
+};
+
+// ---- content ----
+
+for (const k of ['archiveMedia', 'replyContext', 'rawJson', 'notify']) $(k).onchange = () => saveSettings({ [k]: $(k).checked });
+$('threads').onchange = () => saveSettings({ threads: $('threads').value });
+$('maxVideo').onchange = () => saveSettings({ maxVideoMB: Math.max(5, Number($('maxVideo').value) || 512) });
+$('saveRules').onclick = async () => {
+  await saveSettings({ rules: $('rules').value });
+  setMsg('rulesMsg', 'Saved ✓ — applies to newly archived posts.', 'ok');
+};
+
+// ---- X ----
+
+$('removeFromX').onchange = () => {
+  if ($('removeFromX').checked && !confirm('Archived posts will be removed from your X bookmarks. Continue?')) {
+    $('removeFromX').checked = false;
+    return;
+  }
+  saveSettings({ removeFromX: $('removeFromX').checked });
+};
+$('capture').onclick = async () => {
+  $('capture').disabled = true;
+  $('capture').textContent = 'Opening x.com…';
+  try {
+    const r = await send('captureNow');
+    $('capture').textContent = r.captured ? 'Connected ✓' : 'Could not learn — open x.com/i/bookmarks once';
+  } catch (e) {
+    $('capture').textContent = explain(e);
+  }
+  setTimeout(() => {
+    $('capture').textContent = 'Refresh X connection';
+    $('capture').disabled = false;
+  }, 3000);
+  load();
+};
+$('resetCapture').onclick = () => send('resetCapture').then(load);
+
+$('copyLog').onclick = async () => {
+  const lines = status.state.log.map((l) => `${new Date(l.t).toISOString()} [${l.level}] ${l.msg}${l.extra ? ' — ' + l.extra : ''}`);
+  await navigator.clipboard.writeText(lines.join('\n'));
+  $('copyLog').textContent = 'Copied ✓';
+  setTimeout(() => ($('copyLog').textContent = 'Copy'), 1500);
+};
+
+let queued = null;
+chrome.storage.onChanged.addListener((ch) => {
+  if (!(ch.state || ch.settings || ch.xcap) || queued) return;
+  queued = setTimeout(() => {
+    queued = null;
+    load();
+  }, 500);
+});
+
+load().then(() => {
+  if (location.hash === '#activity') $('activity').scrollIntoView();
+});

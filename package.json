@@ -1,0 +1,15 @@
+{
+  "name": "roost",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Brave/Chrome extension that archives your X (Twitter) bookmarks, threads and media into Notion.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "setup": "node scripts/setup-notion.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}
