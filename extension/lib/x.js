@@ -198,6 +198,57 @@ export async function captureViaTab(op, hintTweetId, { force = false } = {}) {
   return tabCapture;
 }
 
+// ---------- discovery ----------
+
+const OP_RE = /queryId:"([\w-]+)",operationName:"(\w+)"[^}]*?featureSwitches:\[([^\]]*)\](?:,fieldToggles:\[([^\]]*)\])?/g;
+const names = (s) => (s || '').replace(/"/g, '').split(',').filter(Boolean);
+const DISCOVERY_TTL = 24 * 3600 * 1000;
+
+/** Read current query ids + feature names straight from x.com's own JS bundle (cached for a day). */
+export async function discoverOps({ force = false } = {}) {
+  const c = await load();
+  c._meta ||= {};
+  const cached = c._meta.ops;
+  if (!force && cached && Date.now() - cached.at < DISCOVERY_TTL) return cached.map;
+  const html = await (await fetch('https://x.com/home', { credentials: 'include' })).text();
+  const scripts = [...new Set([...html.matchAll(/src="(https:\/\/abs\.twimg\.com\/[^"]+\.js)"/g)].map((m) => m[1]))].slice(0, 15);
+  const map = {};
+  for (const src of scripts) {
+    try {
+      const js = await (await fetch(src)).text();
+      for (const m of js.matchAll(OP_RE)) if (OPS.includes(m[2])) map[m[2]] = { qid: m[1], features: names(m[3]), toggles: names(m[4]) };
+    } catch { /* try the next bundle */ }
+    if (OPS.every((op) => map[op])) break;
+  }
+  if (!Object.keys(map).length) return cached?.map || {};
+  c._meta.ops = { at: Date.now(), map };
+  await chrome.storage.local.set({ [STORE_KEY]: c });
+  return map;
+}
+
+/** Build a request template from discovery (no x-client-transaction-id: X accepts these without one). */
+async function discoveredTemplate(op, { force = false } = {}) {
+  const d = (await discoverOps({ force }))[op];
+  if (!d) return null;
+  const c = await load();
+  const base = c.Bookmarks || c.TweetDetail;
+  const known = {};
+  for (const t of [c.Bookmarks, c.TweetDetail]) {
+    try {
+      Object.assign(known, JSON.parse(new URL(t.url).searchParams.get('features') || '{}'));
+    } catch { /* no captured features */ }
+  }
+  const tpl = fallbackTemplate(op, base);
+  if (!tpl) return null;
+  const u = new URL(tpl.url.replace(/\/graphql\/[^/]+\//, `/graphql/${d.qid}/`));
+  if (tpl.method === 'GET') {
+    u.searchParams.set('features', JSON.stringify(Object.fromEntries(d.features.map((f) => [f, f in known ? known[f] : true]))));
+    if (d.toggles.length) u.searchParams.set('fieldToggles', JSON.stringify(Object.fromEntries(d.toggles.map((f) => [f, /ArticlePlainText|ArticleRichContent|BirdwatchNotes/.test(f)]))));
+  }
+  const body = tpl.body ? JSON.stringify({ ...JSON.parse(tpl.body), queryId: d.qid }) : null;
+  return { ...tpl, url: u.toString(), body, fallback: false, discovered: true };
+}
+
 function fallbackTemplate(op, base) {
   const fb = FALLBACK[op];
   if (!fb) return null;
@@ -253,20 +304,20 @@ function buildRequest(tpl, vars, dropVars, patches, ct0) {
   return { url: u.toString(), init: { method: tpl.method, headers, body, credentials: 'include', cache: 'no-store' } };
 }
 
-/**
- * Call a GraphQL operation using the freshest captured template.
- * vars override template variables; dropVars removes stale ones (e.g. cursor).
- */
 let rulesReady = null;
 // Never block a sync on this: without the rule X usually still answers.
 const ensureRules = () => (rulesReady ||= installHeaderRules().catch((e) => console.warn('[roost] header rule', e)));
 
+/**
+ * Call a GraphQL operation using the freshest captured template.
+ * vars override template variables; dropVars removes stale ones (e.g. cursor).
+ */
 export async function gql(op, { vars = {}, dropVars = ['cursor'], hintTweetId, minGap = 1100 } = {}) {
   await ensureRules();
   const ct0 = await cookie('ct0');
   if (!ct0 || !(await cookie('auth_token'))) throw new XError('not_logged_in', 'Not logged in to x.com in this browser');
   const c = await load();
-  let tpl = c[op];
+  let tpl = c[op] || (await discoveredTemplate(op).catch(() => null));
   if (!tpl && (await captureViaTab(op, hintTweetId))) tpl = c[op];
   if (!tpl) tpl = fallbackTemplate(op, c.Bookmarks || c.TweetDetail);
   if (!tpl) throw new XError('no_template', `No request template for ${op} yet`);
@@ -308,6 +359,13 @@ export async function gql(op, { vars = {}, dropVars = ['cursor'], hintTweetId, m
       for (const name of missing[1].split(',').map((s) => s.trim()).filter(Boolean)) p[name] = true;
       await chrome.storage.local.set({ [STORE_KEY]: c });
       continue;
+    }
+    if ([400, 404].includes(res.status) && tpl.discovered && !tpl.refreshed) {
+      const fresh = await discoveredTemplate(op, { force: true }).catch(() => null);
+      if (fresh && fresh.url !== tpl.url) {
+        tpl = { ...fresh, refreshed: true };
+        continue;
+      }
     }
     if ([400, 401, 403, 404].includes(res.status) && !recaptured) {
       recaptured = true;

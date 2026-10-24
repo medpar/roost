@@ -68,7 +68,7 @@ Then load the `extension/` folder. Options: `--parent <page url>`, `--database <
 
 X's official API charges for bookmarks, so Roost uses the same private web API x.com itself uses, with your logged-in session:
 
-- **Learns, doesn't guess.** X rotates query IDs, feature flags and an `x-client-transaction-id` header bound to each endpoint. Roost passively records the request templates your own x.com tabs send (via `webRequest`, no content scripts) and replays them from the service worker with your cookies. If it hasn't seen one yet, it opens x.com in a background tab for a few seconds to learn it.
+- **Learns, doesn't guess.** X rotates query IDs, feature flags and an `x-client-transaction-id` header bound to each endpoint. Roost passively records the request templates your own x.com tabs send (via `webRequest`, no content scripts) and replays them from the service worker with your cookies. It also reads current query IDs and feature names straight from x.com's own JS bundle (cached for a day). Only if neither works does it open x.com in a background tab for a few seconds to learn the request.
 - **Self-healing.** Missing feature flags reported by X are added automatically; stale templates are re-learned; rate limits pause and resume on their own.
 - **Light on resources.** An MV3 service worker that sleeps between alarms — no background page, no polling loops, no content scripts injected into x.com. Media goes straight from X's CDN to Notion.
 - **Safe writes.** A page is never created twice: a local id index (rebuilt from Notion when needed), in-flight guards, non-retried page creation, and a duplicate check before every retry. If Notion rejects some content, Roost falls back to a simpler version instead of skipping the post.
@@ -90,6 +90,7 @@ npm test                        # parser, renderer, Notion limits, end-to-end sy
 node scripts/live-check.mjs     # smoke test against the real Notion API (temporary database, then trashed)
 node scripts/package.mjs        # dist/roost-vX.Y.Z.zip
 node scripts/make-icons.mjs     # regenerate icons
+node scripts/import-export.mjs export.json [threads.json]   # bulk-import an exported bookmark list with the extension's pipeline
 ```
 
 ```

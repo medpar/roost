@@ -108,6 +108,8 @@ function xResponse(url, init) {
     return Response.json(bookmarksResponse(entries));
   }
   if (op === 'TweetDetail') {
+    assert.match(u.pathname, /QID_DISC/, 'uses the query id discovered from the bundle');
+    assert.equal(JSON.parse(u.searchParams.get('fieldToggles')).withArticlePlainText, true);
     const focal = vars.focalTweetId;
     if (['201', '202', '203'].includes(focal)) {
       if (vars.cursor === 'MORE') return Response.json(addToModuleResponse('conversationthread-202', [thread3]));
@@ -187,8 +189,14 @@ function notionResponse(url, init) {
   return Response.json({ code: 'not_found', message: path }, { status: 404 });
 }
 
+// x.com's own bundle, which Roost reads to discover current query ids.
+const BUNDLE = 'https://abs.twimg.com/responsive-web/client-web/main.test.js';
+const bundleJs = 'e.exports={queryId:"QID_DISC",operationName:"TweetDetail",operationType:"query",metadata:{featureSwitches:["a","new_detail_flag"],fieldToggles:["withArticlePlainText","withGrokAnalyze"]}}';
+
 globalThis.fetch = async (url, init = {}) => {
   url = String(url);
+  if (url === 'https://x.com/home') return new Response(`<html><script src="${BUNDLE}"></script></html>`);
+  if (url === BUNDLE) return new Response(bundleJs);
   if (url.startsWith('https://x.com/i/api/graphql/')) return xResponse(url, init);
   if (url.startsWith('https://api.notion.com/')) return notionResponse(url, init);
   throw new Error('unexpected fetch ' + url);
@@ -216,7 +224,7 @@ test('full backfill archives every bookmark once, with threads and media', async
   const kinds = threadPage.children.map((b) => b.type);
   assert.ok(kinds.includes('image') && kinds.includes('video'));
   assert.ok(threadPage.children.some((b) => b.type === 'video' && b.video.type === 'file_upload'), 'video archived in Notion');
-  assert.equal(tabsOpened, 1, 'opened a background tab once to learn the TweetDetail request');
+  assert.equal(tabsOpened, 0, 'no background tab needed: TweetDetail came from bundle discovery');
 
   const fx = xCalls.find((c) => c.op === 'Bookmarks' && c.features.new_flag_x);
   assert.ok(fx, 'patched missing feature flags after a 400');
