@@ -258,10 +258,8 @@ function buildRequest(tpl, vars, dropVars, patches, ct0) {
  * vars override template variables; dropVars removes stale ones (e.g. cursor).
  */
 let rulesReady = null;
-const ensureRules = () => (rulesReady ||= installHeaderRules().catch((e) => {
-  rulesReady = null;
-  throw e;
-}));
+// Never block a sync on this: without the rule X usually still answers.
+const ensureRules = () => (rulesReady ||= installHeaderRules().catch((e) => console.warn('[roost] header rule', e)));
 
 export async function gql(op, { vars = {}, dropVars = ['cursor'], hintTweetId, minGap = 1100 } = {}) {
   await ensureRules();

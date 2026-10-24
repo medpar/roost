@@ -388,6 +388,7 @@ export function backfill({ restart = false } = {}) {
         if (!next || next === st.cursor || empty >= 2) {
           Object.assign(st, { status: 'done', finishedAt: Date.now(), cursor: null });
           S.log('info', `Backfill complete: scanned ${st.scanned}, saved ${st.saved}`);
+          await processUnrollRequests(c).catch(() => {});
           return st;
         }
         st.cursor = next;
@@ -414,7 +415,7 @@ export async function stopBackfill() {
 }
 
 /** Pages where "Unroll thread" is ticked (by the user, or deferred by a rate limit). */
-async function processUnrollRequests(c, limit = 10) {
+async function processUnrollRequests(c, limit = 40) {
   const res = await c.notion.query(c.settings.dataSourceId, { filter: { property: P.unroll, checkbox: { equals: true } }, page_size: limit });
   for (const page of res.results) {
     const pid = (page.properties?.[P.id]?.rich_text || []).map((t) => t.plain_text).join('').trim();
