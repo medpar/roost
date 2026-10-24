@@ -10,10 +10,18 @@ const MAX_TEXT = 1900;
 
 // ---------- rich text ----------
 
+// Notion counts UTF-16 units (an emoji is 2), so measure .length, never split a surrogate pair.
 function splitText(s) {
-  const cps = Array.from(s);
   const out = [];
-  for (let i = 0; i < cps.length; i += MAX_TEXT) out.push(cps.slice(i, i + MAX_TEXT).join(''));
+  let cur = '';
+  for (const cp of s) {
+    if (cur.length + cp.length > MAX_TEXT) {
+      out.push(cur);
+      cur = '';
+    }
+    cur += cp;
+  }
+  if (cur) out.push(cur);
   return out;
 }
 

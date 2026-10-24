@@ -55,6 +55,14 @@ test('blocks respect nesting depth, text and item limits (single post, thread, r
   assert.ok(blocks.some((b) => b.type === 'video' && b.video.type === 'external'));
 });
 
+test('long emoji-heavy text stays under the 2000 UTF-16 unit limit', () => {
+  const t = normalizeTweet(tweet({ id: '7', text: 'x', note: '🧵🔥 '.repeat(800) + 'end' }));
+  const props = buildProperties(t, {});
+  validateProperties(props, schemaProperties());
+  assert.equal(props[P.text].rich_text.map((r) => r.text.content).join(''), t.text);
+  validateBlocks(buildBlocks(t, {}));
+});
+
 test('titles prefer article titles, then first line, then a media label', () => {
   assert.equal(titleFor(normalizeTweet(tweet({ id: '1', text: 'First line\nsecond' }))), 'First line');
   assert.equal(titleFor(normalizeTweet(tweet({ id: '1', text: '', media: [photo('1')] }))), 'Photo by @alice');

@@ -123,7 +123,7 @@ async function importMedia(c, posts) {
     ),
   );
   const ok = started.filter(Boolean);
-  const status = await c.notion.waitUploads(ok.map((j) => j.id), ok.some((j) => j.video) ? 180000 : 45000);
+  const status = await c.notion.waitUploads(ok.map((j) => j.id), ok.some((j) => j.video) ? 300000 : 60000);
   for (const j of ok) {
     if (status.get(j.id)) uploads.set(j.key, j.id);
     else S.log('warn', `Media import failed, linking instead: ${j.name}`);
