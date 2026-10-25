@@ -102,7 +102,13 @@ export function pinToItem(pin, board) {
   const video = mp4Of(pin.videos?.video_list) || mp4Of((pin.story_pin_data?.pages || []).flatMap((pg) => pg.blocks || []).find((b) => b.video)?.video?.video_list);
   const image = pin.images?.orig?.url || pin.images?.['736x']?.url || null;
   const description = (pin.description || '').trim();
-  const title = (pin.title || pin.grid_title || pin.seo_title || '').trim() || description.split('\n')[0].slice(0, 120) || (pin.auto_alt_text || '').trim() || (pin.domain ? `Pin from ${pin.domain}` : `Pin on ${board.name || 'Pinterest'}`);
+  // Uploaded pins report "Uploaded by user" as their domain; only a real outbound link has one.
+  const domain = pin.link && pin.domain && !/uploaded by/i.test(pin.domain) ? pin.domain : null;
+  const title =
+    (pin.title || pin.grid_title || '').trim() ||
+    description.split('\n')[0].slice(0, 120) ||
+    (pin.seo_alt_text || pin.auto_alt_text || '').trim().slice(0, 120) ||
+    (domain ? `Pin from ${domain}` : `Pin on ${boardCollection(board).split('/').pop()}`);
   return {
     url: `${ORIGIN}/pin/${pin.id}/`,
     title,
@@ -116,7 +122,7 @@ export function pinToItem(pin, board) {
       author: pin.native_creator?.full_name || pin.native_creator?.username || pin.pinner?.full_name || '',
       published: pin.created_at || null,
       siteName: 'Pinterest',
-      pin: { id: pin.id, link: pin.link || null, domain: pin.domain || null, board: board.name || null, video, color: pin.dominant_color || null },
+      pin: { id: pin.id, link: pin.link || null, domain, board: board.name || null, video, color: pin.dominant_color || null },
     },
   };
 }

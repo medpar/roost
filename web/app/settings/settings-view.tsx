@@ -148,7 +148,7 @@ export default function SettingsView() {
         <div className="cards-2">
           <div className="mini-card">
             <h3><Puzzle size={16} /> Browser extension</h3>
-            <p>Brave, Chrome, Edge and Arc on macOS, Windows and Linux. Save the page you’re on, links, images and selections, import your bookmarks, and keep your X bookmarks in sync.</p>
+            <p>Brave, Chrome, Edge and Arc on macOS, Windows and Linux. Save the page you’re on, links, images and selections, and keep your browser bookmarks, X bookmarks and Pinterest saves in sync, each in its own collection.</p>
             <a className="btn" href="https://github.com/medpar/trove/releases/latest" target="_blank" rel="noreferrer"><Download size={15} /> Download</a>
           </div>
           <div className="mini-card">

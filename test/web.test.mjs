@@ -108,6 +108,9 @@ test('Pinterest pins: one key per pin on any country host, board as sub-collecti
   assert.equal(item.meta.image, 'https://i.pinimg.com/originals/a/b.jpg');
   assert.equal(item.meta.pin.link, 'https://shop.example/watch');
   assert.equal(boardCollection({ name: 'Guardado rápido', url: '/u/_quick_saves/' }), 'Pinterest/Quick saves');
+  const uploaded = pinToItem({ id: '7', type: 'pin', title: '', description: ' ', domain: 'Uploaded by user', link: null, images: {} }, board);
+  assert.equal(uploaded.title, 'Pin on Watches');
+  assert.equal(uploaded.meta.pin.domain, null);
   assert.equal(boardCollection({ name: 'Cars/Bikes', url: '/u/cars/' }), 'Pinterest/Cars-Bikes');
   const video = pinToItem({ ...pin, videos: { video_list: { V_HLSV3: { url: 'https://v.pinimg.com/a.m3u8' }, V_720P: { url: 'https://v.pinimg.com/a.mp4' } } } }, board);
   assert.equal(video.type, 'Video');
