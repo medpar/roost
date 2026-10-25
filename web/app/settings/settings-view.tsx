@@ -114,7 +114,9 @@ export default function SettingsView() {
   const [quick, setQuick] = useState(true);
   const [health, setHealth] = useState<string>('');
   const bookmarklet = useRef<HTMLAnchorElement>(null);
-  const base = me?.publicUrl || (typeof location !== 'undefined' ? location.origin : '');
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(location.origin), []);
+  const base = me?.publicUrl || origin;
   const key = me?.apiKeys.find((k) => /agent|claude/i.test(k.name)) || me?.apiKeys[0];
   const keyFor = (n: RegExp) => me?.apiKeys.find((k) => n.test(k.name)) || key;
   const mask = (k?: string) => (k ? `${k.slice(0, 6)}…${k.slice(-4)}` : '');
@@ -171,7 +173,7 @@ export default function SettingsView() {
         <div className="cards-2">
           <div className="mini-card">
             <h3><Puzzle size={17} /> Browser extension</h3>
-            <p style={{ fontSize: 13 }}>Brave, Chrome, Edge, Arc on macOS, Windows and Linux. One-click save, right-click links/images, save selections as highlights, ✓ badge on saved pages, import + sync browser bookmarks, and your X bookmarks.</p>
+            <p style={{ fontSize: 13 }}>Brave, Chrome, Edge, Arc on macOS, Windows and Linux. One-click save (shows when a page is already saved), right-click links/images, save selections as highlights, import + sync browser bookmarks, and your X bookmarks.</p>
             <a className="btn" href="https://github.com/medpar/trove/releases/latest" target="_blank" rel="noreferrer"><Download size={15} /> Download</a>
           </div>
           <div className="mini-card">
