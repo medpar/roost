@@ -397,7 +397,7 @@ export default function TroveApp() {
   const head = titleFor(scope);
   const count =
     scope.kind === 'all' ? stats?.total : scope.kind === 'unsorted' ? stats?.unsorted : scope.kind === 'favorites' ? stats?.favorites : scope.kind === 'unread' ? stats?.unread
-      : scope.kind === 'collection' ? stats?.collections.find((c) => c.name === scope.value)?.count : scope.kind === 'tag' ? stats?.tags.find((c) => c.name === scope.value)?.count
+      : scope.kind === 'collection' ? stats?.collections.filter((c) => c.name === scope.value || c.name.startsWith(`${scope.value}/`)).reduce((a, c) => a + c.count, 0) : scope.kind === 'tag' ? stats?.tags.find((c) => c.name === scope.value)?.count
       : scope.kind === 'type' ? stats?.types.find((c) => c.name === scope.value)?.count : scope.kind === 'source' ? (scope.value === 'x' ? stats?.x : stats?.library) : undefined;
 
   const loading = !list.data && (list.isLoading || list.isValidating);

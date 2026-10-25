@@ -152,7 +152,13 @@ function buildFilter(q: Query, props: Record<string, any> = {}): F | null | unde
     return parts.length === 0 ? null : parts.length === 1 ? parts[0] : { or: parts };
   };
   if (q.tags.some((t) => !has(L.tags, t))) return null;
-  if (q.collection && !has(L.collection, q.collection)) return null;
+  // A collection includes its sub-collections ("Browser bookmarks" covers "Browser bookmarks/Utils/APIs").
+  let collections: string[] = [];
+  if (q.collection) {
+    const opts: { name: string }[] = props[L.collection]?.select?.options || [];
+    collections = opts.map((o) => o.name).filter((n) => n === q.collection || n.startsWith(`${q.collection}/`));
+    if (!collections.length) return null;
+  }
   if (q.platform) {
     if (!has(L.platform, q.platform)) return null;
     and.push({ property: L.platform, select: { equals: q.platform } });
@@ -188,7 +194,8 @@ function buildFilter(q: Query, props: Record<string, any> = {}): F | null | unde
   for (const t of q.notTags) if (has(L.tags, t)) and.push({ property: L.tags, multi_select: { does_not_contain: t } });
   if (q.noTags) and.push({ property: L.tags, multi_select: { is_empty: true } });
   if (q.collection === null) and.push({ property: L.collection, select: { is_empty: true } });
-  else if (q.collection) and.push({ property: L.collection, select: { equals: q.collection } });
+  else if (collections.length === 1) and.push({ property: L.collection, select: { equals: collections[0] } });
+  else if (collections.length) and.push({ or: collections.slice(0, 100).map((c) => ({ property: L.collection, select: { equals: c } })) });
   if (q.favorite !== undefined) and.push({ property: L.favorite, checkbox: { equals: q.favorite } });
   if (q.read !== undefined) and.push({ property: L.read, checkbox: { equals: q.read } });
   if (q.hasNote !== undefined) and.push({ property: L.note, rich_text: q.hasNote ? { is_not_empty: true } : { is_empty: true } });
@@ -510,7 +517,9 @@ async function mergeInto(page: any, input: SaveInput): Promise<Item> {
   const T = L;
   const props: Record<string, unknown> = {};
   if (input.tags?.length) props[T.tags] = { multi_select: uniq([...item.tags, ...input.tags]).map((name) => ({ name })) };
-  if (input.collection && input.collection !== item.collection) props[T.collection] = { select: { name: selName(input.collection) } };
+  // Imports and synced bookmarks never move something you already filed somewhere else.
+  const bulk = input.source === 'Browser bookmarks' || input.source === 'Import';
+  if (input.collection && input.collection !== item.collection && !(bulk && item.collection)) props[T.collection] = { select: { name: selName(input.collection) } };
   if (input.note && !item.note.includes(input.note)) props[T.note] = { rich_text: rt([item.note, input.note].filter(Boolean).join('\n\n')) };
   if (input.favorite) props[T.favorite] = { checkbox: true };
   if (Object.keys(props).length) await notion().updatePage(page.id, { properties: props });

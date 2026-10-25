@@ -48,7 +48,7 @@ Trove is built to be driven by agents: anything that can run a command or make a
   trove get <id> --content                 # archived Markdown
   trove update <id> --add-tags ai -c "Dev/AI"
   ```
-  Every command takes `--json`. The [skill file](skills/trove/SKILL.md) teaches any skills-aware agent when and how to use it.
+  Every command takes `--json`. The [skill file](skills/trove/SKILL.md) teaches any skills-aware agent when and how to use it, including filing what it saves (collection, tags and a note) on its own.
 - **REST:** `POST /api/items {url | text, tags, collection, note, highlight}`, `GET /api/items?q=…`, `GET /api/items/:id?content=1`. Docs: [`/llms.txt`](https://trove.mariomedpar.com/llms.txt), [`/openapi.json`](https://trove.mariomedpar.com/openapi.json).
 - **MCP** (optional): `https://trove.mariomedpar.com/api/mcp` with `Authorization: Bearer <key>`.
 

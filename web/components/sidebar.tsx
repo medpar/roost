@@ -1,8 +1,8 @@
 'use client';
 import {
-  AlarmClock, Bot, BookmarkCheck, Folder, FolderOpen, Hash, Heart, Highlighter, Inbox, Layers, Link2Off, Moon, NotebookPen, Search, Settings, Sun, Tags, X,
+  AlarmClock, Bot, BookmarkCheck, ChevronRight, Folder, FolderOpen, Hash, Heart, Highlighter, Inbox, Layers, Link2Off, Moon, NotebookPen, Search, Settings, Sun, Tags, X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Scope, Stats } from './types';
 import { NOTION_COLORS, TypeIcon, TYPE_ORDER } from './ui';
 
@@ -31,23 +31,54 @@ export function Sidebar({ stats, scope, onScope, onSearch, onAgent, theme, onThe
     onClose();
   };
 
-  // Nest under existing parents only; "Reading/Tech" without a "Reading" collection stays a top-level row.
-  const collections = useMemo(() => {
-    const list = stats?.collections || [];
-    const names = new Set(list.map((c) => c.name));
-    return list.map((c) => {
-      const parts = c.name.split('/').map((p) => p.trim());
-      let depth = 0;
-      let start = 0;
-      for (let i = 1; i < parts.length; i++) {
-        if (names.has(parts.slice(0, i).join('/'))) {
-          depth++;
-          start = i;
-        }
-      }
-      return { ...c, depth, label: parts.slice(start).join(' / ') };
-    });
+  // Collections form a tree by "/" in their names. Parents count everything inside them,
+  // and a parent that only exists through its children still gets a row.
+  const tree = useMemo(() => {
+    type Node = { name: string; label: string; own: number; total: number; color: string; children: Node[] };
+    const byName = new Map<string, Node>();
+    const roots: Node[] = [];
+    const node = (name: string): Node => {
+      let n = byName.get(name);
+      if (n) return n;
+      const parts = name.split('/');
+      n = { name, label: parts[parts.length - 1].trim(), own: 0, total: 0, color: 'default', children: [] };
+      byName.set(name, n);
+      if (parts.length > 1) node(parts.slice(0, -1).join('/')).children.push(n);
+      else roots.push(n);
+      return n;
+    };
+    for (const c of stats?.collections || []) {
+      const n = node(c.name);
+      n.own = c.count;
+      n.color = c.color;
+    }
+    const sum = (n: Node): number => (n.total = n.own + n.children.reduce((a, c) => a + sum(c), 0));
+    const sort = (list: Node[]) => list.sort((a, b) => a.label.localeCompare(b.label)).forEach((n) => sort(n.children));
+    roots.forEach(sum);
+    sort(roots);
+    return roots;
   }, [stats]);
+
+  // Collapsed by default; the path to the open collection is always expanded.
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      setUnfolded(new Set(JSON.parse(localStorage.getItem('trove-open-collections') || '[]')));
+    } catch { /* private mode */ }
+  }, []);
+  const toggle = (name: string) =>
+    setUnfolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      try {
+        localStorage.setItem('trove-open-collections', JSON.stringify([...next]));
+      } catch { /* private mode */ }
+      return next;
+    });
+  const activePath = scope.kind === 'collection' ? scope.value || '' : '';
+  const expanded = (name: string) => unfolded.has(name) || activePath.startsWith(`${name}/`);
+
   const tags = stats?.tags || [];
   const types = [...(stats?.types || [])].sort((a, b) => TYPE_ORDER.indexOf(a.name) - TYPE_ORDER.indexOf(b.name));
 
@@ -59,6 +90,33 @@ export function Sidebar({ stats, scope, onScope, onSearch, onAgent, theme, onThe
         <span className="label">{label}</span>
         {count !== undefined && <span className="count">{count.toLocaleString()}</span>}
       </button>
+    );
+  };
+
+  type TreeNode = (typeof tree)[number];
+  const CollectionRow = ({ node, depth }: { node: TreeNode; depth: number }) => {
+    const active = is('collection', node.name);
+    const color = node.color && node.color !== 'default' ? NOTION_COLORS[node.color] : undefined;
+    const hasKids = node.children.length > 0;
+    const isOpen = hasKids && expanded(node.name);
+    return (
+      <>
+        <div className={`nav-row ${active ? 'active' : ''}`} style={{ paddingInlineStart: depth * 14 }}>
+          {hasKids ? (
+            <button className="nav-toggle" onClick={() => toggle(node.name)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.label}`}>
+              <ChevronRight size={14} style={{ rotate: isOpen ? '90deg' : '0deg' }} />
+            </button>
+          ) : (
+            <span className="nav-toggle" aria-hidden="true" />
+          )}
+          <button className={`nav ${active ? 'active' : ''}`} onClick={() => nav({ kind: 'collection', value: node.name })} aria-current={active ? 'page' : undefined} title={node.name}>
+            {active || isOpen ? <FolderOpen size={16} style={color ? { color } : undefined} /> : <Folder size={16} style={color ? { color } : undefined} />}
+            <span className="label">{node.label}</span>
+            <span className="count">{node.total.toLocaleString()}</span>
+          </button>
+        </div>
+        {isOpen && node.children.map((c) => <CollectionRow key={c.name} node={c} depth={depth + 1} />)}
+      </>
     );
   };
 
@@ -93,25 +151,10 @@ export function Sidebar({ stats, scope, onScope, onSearch, onAgent, theme, onThe
 
           <div className="side-section">
             <div className="side-title">Collections</div>
-            {collections.length === 0 && <p className="side-empty">Give any item a collection to start one.</p>}
-            {collections.map((c) => {
-              const active = is('collection', c.name);
-              const color = c.color && c.color !== 'default' ? NOTION_COLORS[c.color] : undefined;
-              return (
-                <button
-                  key={c.name}
-                  className={`nav ${active ? 'active' : ''}`}
-                  style={{ paddingInlineStart: 8 + c.depth * 16 }}
-                  onClick={() => nav({ kind: 'collection', value: c.name })}
-                  aria-current={active ? 'page' : undefined}
-                  title={c.name}
-                >
-                  {active ? <FolderOpen size={16} style={color ? { color } : undefined} /> : <Folder size={16} style={color ? { color } : undefined} />}
-                  <span className="label">{c.label}</span>
-                  <span className="count">{c.count.toLocaleString()}</span>
-                </button>
-              );
-            })}
+            {tree.length === 0 && <p className="side-empty">Give any item a collection to start one.</p>}
+            {tree.map((n) => (
+              <CollectionRow key={n.name} node={n} depth={0} />
+            ))}
           </div>
 
           {types.length > 0 && (

@@ -70,8 +70,41 @@ chrome.bookmarks.onCreated.addListener(async (_id, node) => {
   if (!node.url || !/^https?:/.test(node.url)) return;
   const { syncBrowserBookmarks } = await S.getSettings();
   if (!syncBrowserBookmarks) return;
-  const collection = await folderPath(node.parentId);
-  saveUrl({ url: node.url, title: node.title, collection: collection || undefined, source: 'Browser bookmarks' }, { quiet: true });
+  saveUrl({ url: node.url, title: node.title, collection: bookmarksCollection(await folderPath(node.parentId)), source: 'Browser bookmarks' }, { quiet: true });
+});
+
+// Keep synced bookmarks in step with the browser: moving a bookmark to another folder moves it
+// in Trove, renaming it renames it. Deleting a bookmark keeps the archived copy.
+async function syncedItem(url) {
+  if (!url || !/^https?:/.test(url) || !(await S.getSettings()).syncBrowserBookmarks) return null;
+  const item = await Trove.lookup(url).catch(() => null);
+  // Only touch items that are filed as browser bookmarks; anything filed elsewhere is left alone.
+  return item && (item.collection || '').split('/')[0] === BOOKMARKS_ROOT ? item : null;
+}
+
+/** Re-file every synced bookmark inside a node (a bookmark or a whole folder) after it moved or was renamed. */
+async function refile(id) {
+  const [root] = await chrome.bookmarks.getSubTree(id).catch(() => []);
+  if (!root) return;
+  const walk = async (n) => {
+    if (n.url) {
+      const item = await syncedItem(n.url);
+      const collection = bookmarksCollection(await folderPath(n.parentId));
+      if (item && item.collection !== collection) await Trove.update(item.id, { collection }).catch(() => {});
+    }
+    for (const c of n.children || []) await walk(c);
+  };
+  await walk(root);
+}
+
+chrome.bookmarks.onMoved.addListener((id) => refile(id));
+
+chrome.bookmarks.onChanged.addListener(async (id, { title }) => {
+  const [node] = await chrome.bookmarks.get(id).catch(() => []);
+  if (!node) return;
+  if (!node.url) return refile(id); // a folder was renamed
+  const item = await syncedItem(node.url);
+  if (item && title && title !== item.title) await Trove.update(item.id, { title }).catch(() => {});
 });
 
 chrome.notifications.onClicked.addListener((id) => {
@@ -104,6 +137,10 @@ function createMenus() {
 }
 
 // ---------- saving to the Trove web app ----------
+
+// Browser bookmarks all live under one collection; their folders become sub-collections.
+const BOOKMARKS_ROOT = 'Browser bookmarks';
+const bookmarksCollection = (path) => (path ? `${BOOKMARKS_ROOT}/${path}` : BOOKMARKS_ROOT);
 
 const SKIP_FOLDERS = /^(bookmarks bar|bookmarks toolbar|barra de marcadores|favorites bar|other bookmarks|otros marcadores|mobile bookmarks|marcadores del móvil|bookmarks menu)$/i;
 
@@ -184,7 +221,7 @@ async function importBrowserBookmarks() {
   const walk = (nodes, path) => {
     for (const n of nodes) {
       if (n.url) {
-        if (/^https?:/.test(n.url)) rows.push({ url: n.url, title: n.title, collection: path.join('/') || undefined });
+        if (/^https?:/.test(n.url)) rows.push({ url: n.url, title: n.title, collection: bookmarksCollection(path.join('/')) });
       } else walk(n.children || [], n.title && !SKIP_FOLDERS.test(n.title) && n.id !== '0' ? [...path, n.title.replace(/\//g, '-')] : path);
     }
   };

@@ -17,6 +17,9 @@ trove check <url> --json
 trove tags --json | trove collections --json
 Run \`trove --help\` for everything.
 
+## When you save something
+File it without asking: list existing collections and tags first (trove collections --json, trove tags --json, or GET /api/stats), pass the best collection (nested with "/"; create one only when nothing fits; never "Browser bookmarks", which holds browser-synced bookmarks), 1-4 short lowercase tags, and a one-line note when the user gave context. Trove detects the content type (article, video, X bookmark, repo...) itself.
+
 ## REST
 - POST ${base}/api/items  JSON {url | text, title?, note?, tags?, collection?, highlight?, favorite?}  -> saves (deduplicated; saving again merges tags and notes). {items:[...]} saves up to 25 at once.
 - GET  ${base}/api/items?q=QUERY&limit=20  -> search. Syntax: words, "phrase", -word, #tag, -#tag, type:video|article|post|x|repo|note (type:x = X bookmarks), site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, source:x, match:OR

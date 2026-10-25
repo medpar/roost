@@ -9,7 +9,7 @@ type Me = { publicUrl: string; notion: { library: string }; apiKeys: { name: str
 
 // ---------- import parsers ----------
 
-type Row = { url: string; title?: string; collection?: string; tags?: string[]; note?: string };
+type Row = { url: string; title?: string; collection?: string; tags?: string[]; note?: string; source?: string };
 
 function parseNetscape(html: string): Row[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -22,7 +22,7 @@ function parseNetscape(html: string): Row[] {
       const h3 = dt.querySelector(':scope > h3');
       if (a) {
         const url = a.getAttribute('href') || '';
-        if (/^https?:/.test(url)) out.push({ url, title: a.textContent?.trim(), collection: path.join('/') || undefined, tags: (a.getAttribute('tags') || '').split(',').map((s) => s.trim()).filter(Boolean) });
+        if (/^https?:/.test(url)) out.push({ url, title: a.textContent?.trim(), collection: ['Browser bookmarks', ...path].join('/'), tags: (a.getAttribute('tags') || '').split(',').map((s) => s.trim()).filter(Boolean), source: 'Browser bookmarks' });
       } else if (h3) {
         const sub = dt.querySelector(':scope > dl');
         const name = h3.textContent?.trim() || '';
@@ -110,7 +110,7 @@ export default function SettingsView() {
     if (!rows.length) return toast.push({ text: 'No links found in that file' });
     setImp({ total: rows.length, done: 0, saved: 0, errors: 0, running: true });
     for (let i = 0; i < rows.length; i += 10) {
-      const batch = rows.slice(i, i + 10).map((r) => ({ ...r, source: 'Import', archive: quick ? false : undefined }));
+      const batch = rows.slice(i, i + 10).map((r) => ({ source: 'Import', ...r, archive: quick ? false : undefined }));
       try {
         const r = await api<{ results: any[] }>('/api/items', { method: 'POST', json: { items: batch } });
         const saved = r.results.filter((x) => x.created).length;
@@ -213,7 +213,7 @@ export default function SettingsView() {
 
       <section>
         <h2>Import</h2>
-        <p>Bring in browser bookmarks (HTML export from Brave, Chrome, Safari or Firefox), a Raindrop or Pocket CSV, a Trove JSON export, or any text file with links. Folders become collections and duplicates are skipped.</p>
+        <p>Bring in browser bookmarks (HTML export from Brave, Chrome, Safari or Firefox), a Raindrop or Pocket CSV, a Trove JSON export, or any text file with links. Browser bookmarks go under the Browser bookmarks collection with their folders inside it, other folders become collections, and duplicates are skipped.</p>
         <label className="check-row">
           <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} />
           <span>Quick import: metadata only, much faster for large files</span>

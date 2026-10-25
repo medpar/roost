@@ -27,6 +27,7 @@ export const save = (payload) => call('/api/items', { method: 'POST', body: { so
 export const saveMany = (items) => call('/api/items', { method: 'POST', body: { items: items.map((i) => ({ source: 'Extension', ...i })) } });
 export const list = (q, limit = 30) => call(`/api/items?q=${encodeURIComponent(q)}&limit=${limit}`);
 export const enrich = (id, body) => call(`/api/items/${id}/enrich`, { method: 'POST', body });
+export const update = (id, patch) => call(`/api/items/${id}`, { method: 'PATCH', body: patch });
 export async function lookup(url) {
   const r = await call(`/api/lookup?url=${encodeURIComponent(url)}`);
   return r.results?.[url] || null;

@@ -2785,3 +2785,33 @@ code {
     display: none;
   }
 }
+
+/* ---------- collection tree ---------- */
+.nav-row {
+  display: flex;
+  align-items: center;
+}
+.nav-row .nav {
+  flex: 1;
+  min-width: 0;
+  padding-inline-start: 4px;
+}
+.nav-toggle {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-4);
+}
+button.nav-toggle:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.nav-toggle svg {
+  transition: rotate 150ms var(--ease);
+}

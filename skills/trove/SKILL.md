@@ -37,9 +37,14 @@ Full reference: `$TROVE_URL/llms.txt` and `$TROVE_URL/openapi.json`. An MCP serv
 
 ## Rules
 
-1. **Bare link or "save this": save it right away.** Don't ask for confirmation. Pass any context the user gave as the note.
-2. **Tags:** reuse existing ones (`trove tags --json`) before inventing new ones; at most 5, lowercase, short. Only add tags or a collection when the user asked or it is obvious from their words.
-3. **Collections** are one per item and can be nested with `/` (for example `Dev/AI`). Prefer existing collections.
+1. **Bare link or "save this": save it right away.** Don't ask for confirmation.
+2. **File everything you save, without asking.** Trove detects the content type (article, video, X bookmark, repo…) by itself; you choose where it goes:
+   - Run `trove collections --json` and `trove tags --json` once per conversation and reuse what exists.
+   - Pick the best collection (nested with `/`, e.g. `Dev/AI`). Create a new one only when nothing fits, and nest it under an existing parent when one makes sense. Never use `Browser bookmarks`: it is reserved for bookmarks synced from the browser.
+   - Add 1–4 short lowercase tags, reusing existing ones.
+   - Add a one-line note with why it matters when the user gave any context.
+   - Pass them all in the same save: `trove save <url> -c "Dev/AI" -t llm,agents -n "…"`. If you only learn what it is after saving (from the archived content), fix it with `trove update <id> -c … --add-tags …`.
+3. **Collections** are one per item. A parent collection includes its sub-collections when you search with `-c` or `collection:"Name"`.
 4. **Search syntax:** words, `"exact phrase"`, `-exclude`, `#tag`, `-#tag`, `type:article|video|post|x|repo|note|paper|image|document` (`type:x` = X bookmarks), `site:github.com`, `collection:"Name"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `match:OR`.
 5. **Answer from the archive:** to summarize or quote something saved, read it with `trove get <id> --content` instead of fetching the web again.
 6. **Report what the command confirmed:** the title, whether it was new or already saved, and the link `$TROVE_URL/?item=<id>`. Never claim a save that returned an error.
