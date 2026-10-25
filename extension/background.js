@@ -26,12 +26,18 @@ X.installCapture({
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   createMenus();
   const preconfigured = await boot();
+  setTimeout(() => enrichVideos().catch(() => {}), 15000);
   if (reason === 'install') chrome.runtime.openOptionsPage();
   if (preconfigured) kickoff();
   else resumeIfNeeded();
 });
 
-chrome.runtime.onStartup.addListener(() => boot().then(resumeIfNeeded));
+chrome.runtime.onStartup.addListener(() =>
+  boot().then(() => {
+    resumeIfNeeded();
+    setTimeout(() => enrichVideos().catch(() => {}), 15000);
+  }),
+);
 
 chrome.alarms.onAlarm.addListener(async ({ name }) => {
   if (name === 'sync') {

@@ -149,6 +149,7 @@ export default function SettingsView() {
   const mcpUrl = `${base}/api/mcp`;
   const claudeKey = keyFor(/claude/i)?.key || '<api key>';
   const hermesKey = keyFor(/hermes/i)?.key || '<api key>';
+  const instinctKey = keyFor(/instinct/i)?.key || '<api key>';
 
   return (
     <div className="settings">
@@ -217,6 +218,9 @@ export default function SettingsView() {
         <Code>{`claude mcp add --transport http --scope user trove ${mcpUrl} --header "Authorization: Bearer ${claudeKey}"`}</Code>
         <div className="field-label">Hermes Agent (~/.hermes/config.yaml)</div>
         <Code>{`mcp_servers:\n  trove:\n    url: ${mcpUrl}\n    headers:\n      Authorization: "Bearer ${hermesKey}"`}</Code>
+        <div className="field-label">Instinct & any other assistant</div>
+        <p style={{ fontSize: 13, marginTop: -6 }}>Add Trove as a remote MCP server (URL + header below). If the assistant only supports HTTP actions/tools, give it the OpenAPI spec <code>{base}/openapi.json</code> with the same bearer key. Then just send it a link or a message — “save this” — and it lands in Trove with Via: Instinct.</p>
+        <Code>{`MCP server: ${mcpUrl}\nHeader:     Authorization: Bearer ${instinctKey}\nOpenAPI:    ${base}/openapi.json`}</Code>
         <div className="field-label">Claude Desktop, Cursor & other MCP clients</div>
         <Code>{JSON.stringify({ mcpServers: { trove: { url: mcpUrl, headers: { Authorization: `Bearer ${key?.key || '<api key>'}` } } } }, null, 2)}</Code>
         <div className="field-label">REST (any assistant, n8n, Zapier, scripts)</div>

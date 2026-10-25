@@ -213,6 +213,17 @@ async function youtube(url: string): Promise<Extracted> {
     let p: any = m ? JSON.parse(m[1]) : null;
     // Datacenter IPs often get a bot check instead of the page: ask the player API directly.
     if (!p?.videoDetails) p = await innertube(id);
+    if (!p?.videoDetails) {
+      // Still bot-checked: the watch-next endpoint keeps working and has the description.
+      const n = await youtubeNext(id);
+      if (n) {
+        e.title ||= n.title;
+        e.author ||= n.channel;
+        e.description = n.description;
+        e.published = n.published;
+        e.extra = { views: n.views, likes: n.likes };
+      }
+    }
     if (p?.videoDetails) {
       const vd = p.videoDetails || {};
       const mf = p.microformat?.playerMicroformatRenderer || {};
@@ -254,6 +265,44 @@ async function youtube(url: string): Promise<Extracted> {
   e.text = [e.title, e.description, e.extra.transcript].filter(Boolean).join(' ');
   e.words = wordCount(String(e.extra.transcript || e.description));
   return e;
+}
+
+const findKey2 = (o: any, key: string, depth = 0): any => {
+  if (!o || typeof o !== 'object' || depth > 30) return undefined;
+  if (key in o) return o[key];
+  for (const v of Object.values(o)) {
+    const f = findKey2(v, key, depth + 1);
+    if (f !== undefined) return f;
+  }
+  return undefined;
+};
+
+async function youtubeNext(videoId: string) {
+  try {
+    const res = await fetch('https://www.youtube.com/youtubei/v1/next?prettyPrint=false', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': UA },
+      body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: '2.20251020.01.00', hl: 'en' } }, videoId }),
+      signal: AbortSignal.timeout(9000),
+    });
+    const n = await res.json();
+    const primary = findKey2(n, 'videoPrimaryInfoRenderer');
+    const secondary = findKey2(n, 'videoSecondaryInfoRenderer');
+    const header = findKey2(n, 'videoDescriptionHeaderRenderer');
+    const factoids: any[] = header?.factoid || [];
+    const factoid = (label: RegExp) => factoids.map((f) => f.factoidRenderer).find((f) => label.test(f?.label?.simpleText || ''))?.value?.simpleText || null;
+    const date = header?.publishDate?.simpleText || primary?.dateText?.simpleText;
+    return {
+      title: (primary?.title?.runs || []).map((r: any) => r.text).join(''),
+      channel: secondary?.owner?.videoOwnerRenderer?.title?.runs?.[0]?.text || header?.channel?.simpleText || '',
+      description: (secondary?.attributedDescription?.content || '').trim(),
+      published: iso(date),
+      views: (primary?.viewCount?.videoViewCountRenderer?.viewCount?.simpleText || '').replace(/[^\d]/g, '') || null,
+      likes: factoid(/likes/i),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function innertube(videoId: string): Promise<any | null> {

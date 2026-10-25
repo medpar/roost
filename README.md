@@ -54,7 +54,7 @@ Trove exposes the same library to every assistant. Each agent gets its own API k
 - **Skill:** [`skills/trove/SKILL.md`](skills/trove/SKILL.md) teaches any skills-aware agent (Claude Code, Hermes, …) when and how to save.
 - **REST:** `POST /api/items {url | text, tags, collection, note, highlight}`, `GET /api/items?q=…`, `GET /api/items/:id?content=1`. Docs for agents: [`/llms.txt`](https://trove.mariomedpar.com/llms.txt), [`/openapi.json`](https://trove.mariomedpar.com/openapi.json).
 
-Message your assistant a link (e.g. Hermes on Telegram) and it lands in Trove.
+Message your assistant a link (e.g. Hermes on Telegram) and it lands in Trove. Assistants such as **Instinct** connect the same way: add the MCP server (or the OpenAPI spec for HTTP-only tools) with their own key from Settings — whatever they save is labelled “Via: Instinct”.
 
 ## Architecture
 
