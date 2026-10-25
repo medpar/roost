@@ -1,5 +1,5 @@
 'use client';
-import { ArrowUpRight, CheckCircle2, Circle, Copy, ExternalLink, Heart, Highlighter, Trash2, X } from 'lucide-react';
+import { ArrowUpRight, Bot, CalendarDays, CheckCircle2, Circle, Clock, Copy, ExternalLink, Folder, Hash, Heart, Highlighter, Inbox, NotebookPen, Trash2, User, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { mutate } from 'swr';
 import { api, fmtDate, fmtDuration, patchItem, useItem } from './api';
@@ -8,9 +8,9 @@ import { CollectionInput, TagInput } from './taginput';
 import type { Item, Stats } from './types';
 import { Favicon, TypeIcon, useToast } from './ui';
 
-type Props = { id: string; seed?: Item; stats?: Stats; onClose: () => void; onDelete: (it: Item) => void };
+type Props = { id: string; seed?: Item; stats?: Stats; onClose: () => void; onDelete: (it: Item) => void; onAsk: (it: Item) => void };
 
-export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
+export function Detail({ id, seed, stats, onClose, onDelete, onAsk }: Props) {
   const { data, isLoading } = useItem(id);
   const item = data?.item || seed;
   const toast = useToast();
@@ -19,6 +19,7 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
   const [note, setNote] = useState(item?.note || '');
   const [sel, setSel] = useState<{ text: string; x: number; y: number } | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTitle(item?.title || '');
@@ -28,7 +29,8 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
 
   useEffect(() => {
     setTab('read');
-    readerRef.current?.closest('.panel-body')?.scrollTo({ top: 0 });
+    setSel(null);
+    bodyRef.current?.scrollTo({ top: 0 });
   }, [id]);
 
   if (!item) return null;
@@ -38,7 +40,7 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
     try {
       await patchItem(item.id, patch);
     } catch (e: any) {
-      toast.push({ text: `Couldn't save: ${e.message}` });
+      toast.push({ text: `Couldn’t save: ${e.message}` });
     }
   };
 
@@ -61,32 +63,28 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
       await mutate(`/api/items/${item.id}?content=1`);
       toast.update(t, { text: 'Highlight saved', busy: false });
     } catch (e: any) {
-      toast.update(t, { text: `Couldn't save highlight: ${e.message}`, busy: false });
+      toast.update(t, { text: `Couldn’t save the highlight: ${e.message}`, busy: false });
     }
   };
 
-  const facts: [string, React.ReactNode][] = [
-    ['Type', <span key="t" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><TypeIcon type={item.type} /> {item.type}{item.platform !== 'Web' ? ` · ${item.platform}` : ''}</span>],
-    ...(item.author ? [['Author', item.author] as [string, React.ReactNode]] : []),
-    ...(item.published ? [['Published', fmtDate(item.published)] as [string, React.ReactNode]] : []),
-    ['Saved', `${fmtDate(item.created)}${item.via ? ` via ${item.via}` : item.source ? ` · ${item.source}` : ''}`],
-    ...(item.readingTime ? [['Length', `${item.readingTime} min read`] as [string, React.ReactNode]] : []),
-    ...(item.duration ? [['Duration', fmtDuration(item.duration)] as [string, React.ReactNode]] : []),
-    ...(item.stats?.likes !== undefined && item.stats?.likes !== null ? [['Stats', `♥ ${item.stats.likes?.toLocaleString()} · ↻ ${item.stats.reposts?.toLocaleString() ?? 0}${item.stats.views ? ` · ${item.stats.views.toLocaleString()} views` : ''}`] as [string, React.ReactNode]] : []),
-    ...(item.status === 'Broken' ? [['Status', <span key="s" style={{ color: 'var(--danger)' }}>Link looks broken — the archived copy below is safe</span>] as [string, React.ReactNode]] : []),
-  ];
+  const saved = `${fmtDate(item.created)}${item.via ? ` via ${item.via}` : item.source ? ` from ${item.source}` : ''}`;
+  const length = item.duration ? fmtDuration(item.duration) : item.readingTime ? `${item.readingTime} min read` : '';
+  const engagement =
+    item.stats?.likes !== undefined && item.stats?.likes !== null
+      ? [`${item.stats.likes?.toLocaleString()} likes`, `${(item.stats.reposts ?? 0).toLocaleString()} reposts`, item.stats.views ? `${item.stats.views.toLocaleString()} views` : ''].filter(Boolean).join(' · ')
+      : '';
 
   return (
     <aside className="panel" aria-label="Item details">
       <div className="panel-head">
-        <button className="icon-btn" onClick={onClose} aria-label="Close (Esc)">
+        <button className="icon-btn" onClick={onClose} aria-label="Close" title="Close (Esc)">
           <X size={18} />
         </button>
-        <span style={{ flex: 1 }} />
-        <button className={`icon-btn ${item.favorite ? 'on' : ''}`} onClick={() => save({ favorite: !item.favorite })} aria-label="Favorite (F)" title="Favorite (F)">
+        <span className="spacer" />
+        <button className={`icon-btn ${item.favorite ? 'on' : ''}`} onClick={() => save({ favorite: !item.favorite })} aria-label={item.favorite ? 'Remove favorite' : 'Favorite'} aria-pressed={item.favorite} title="Favorite (F)">
           <Heart size={17} fill={item.favorite ? 'currentColor' : 'none'} />
         </button>
-        <button className={`icon-btn ${item.read ? 'on' : ''}`} onClick={() => save({ read: !item.read })} aria-label="Read (R)" title={item.read ? 'Mark unread (R)' : 'Mark read (R)'}>
+        <button className={`icon-btn ${item.read ? 'on' : ''}`} onClick={() => save({ read: !item.read })} aria-label={item.read ? 'Mark unread' : 'Mark read'} title={item.read ? 'Mark unread (R)' : 'Mark read (R)'}>
           {item.read ? <CheckCircle2 size={17} /> : <Circle size={17} />}
         </button>
         <button
@@ -100,19 +98,22 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
         >
           <Copy size={16} />
         </button>
+        <button className="icon-btn" onClick={() => onAsk(item)} aria-label="Ask the agent about this item" title="Ask the agent">
+          <Bot size={17} />
+        </button>
         <a className="icon-btn" href={item.notionUrl} target="_blank" rel="noreferrer" aria-label="Open in Notion" title="Open in Notion">
           <ExternalLink size={16} />
         </a>
-        <button className="icon-btn" onClick={() => onDelete(item)} aria-label="Delete" title="Delete">
+        <button className="icon-btn" onClick={() => onDelete(item)} aria-label="Move to trash" title="Move to trash">
           <Trash2 size={16} />
         </button>
         {item.url && (
-          <a className="btn primary" href={item.url} target="_blank" rel="noreferrer" style={{ marginLeft: 6 }}>
+          <a className="btn primary" href={item.url} target="_blank" rel="noreferrer">
             Open <ArrowUpRight size={15} />
           </a>
         )}
       </div>
-      <div className="panel-body scroll" onMouseUp={onSelect} onScroll={() => sel && setSel(null)}>
+      <div className="panel-body scroll" ref={bodyRef} onMouseUp={onSelect} onScroll={() => sel && setSel(null)}>
         {item.cover && item.type !== 'Video' && (
           <div className="panel-cover">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -122,86 +123,107 @@ export function Detail({ id, seed, stats, onClose, onDelete }: Props) {
         <div className="panel-inner">
           <div>
             {item.url && (
-              <a className="meta" href={item.url} target="_blank" rel="noreferrer" style={{ marginBottom: 10 }}>
-                <Favicon domain={item.domain} size={16} />
-                <span className="host" style={{ color: 'var(--ink-2)' }}>{item.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 80)}</span>
+              <a className="source-link" href={item.url} target="_blank" rel="noreferrer">
+                <Favicon domain={item.domain} size={14} />
+                <span>{item.url.replace(/^https?:\/\/(www\.)?/, '')}</span>
               </a>
             )}
             <textarea
               className="title-edit"
               value={title}
               rows={1}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
               onBlur={() => title.trim() && title !== item.title && save({ title: title.trim() })}
               aria-label="Title"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
-            <div>
-              <div className="field-label">Collection</div>
+          <div className="props">
+            <span className="prop-label"><Folder size={15} /> Collection</span>
+            <div className="prop-value">
               <CollectionInput key={item.id + (item.collection || '')} value={item.collection || ''} known={stats?.collections} onChange={(v) => save({ collection: v || null })} />
             </div>
-            <div>
-              <div className="field-label">Tags</div>
-              <TagInput value={item.tags} known={stats?.tags} onChange={(tags) => save({ tags })} />
+            <span className="prop-label"><Hash size={15} /> Tags</span>
+            <div className="prop-value" style={{ display: 'block' }}>
+              <TagInput value={item.tags} known={stats?.tags} onChange={(tags) => save({ tags })} placeholder="Add tags" />
             </div>
-            <div>
-              <div className="field-label">Note</div>
-              <textarea className="textarea" placeholder="Why does this matter?" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== item.note && save({ note })} />
+            <span className="prop-label"><NotebookPen size={15} /> Note</span>
+            <div className="prop-value">
+              <textarea className="textarea" rows={1} placeholder="Add a note" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== item.note && save({ note })} aria-label="Note" />
             </div>
+            <span className="prop-label"><TypeIcon type={item.type} size={15} /> Type</span>
+            <div className="prop-value text">{item.type}{item.platform && item.platform !== 'Web' ? ` · ${item.platform}` : ''}</div>
+            {item.author && (
+              <>
+                <span className="prop-label"><User size={15} /> Author</span>
+                <div className="prop-value text">{item.author}</div>
+              </>
+            )}
+            {item.published && (
+              <>
+                <span className="prop-label"><CalendarDays size={15} /> Published</span>
+                <div className="prop-value text">{fmtDate(item.published)}</div>
+              </>
+            )}
+            <span className="prop-label"><Inbox size={15} /> Saved</span>
+            <div className="prop-value text">{saved}</div>
+            {length && (
+              <>
+                <span className="prop-label"><Clock size={15} /> Length</span>
+                <div className="prop-value text num">{length}</div>
+              </>
+            )}
+            {engagement && (
+              <>
+                <span className="prop-label"><Heart size={15} /> Engagement</span>
+                <div className="prop-value text num">{engagement}</div>
+              </>
+            )}
+            {item.status === 'Broken' && (
+              <>
+                <span className="prop-label" style={{ color: 'var(--danger)' }}><ExternalLink size={15} /> Status</span>
+                <div className="prop-value text" style={{ color: 'var(--danger)' }}>The original link looks broken. The archived copy below is safe.</div>
+              </>
+            )}
           </div>
 
-          <dl className="facts">
-            {facts.map(([k, v]) => (
-              <div key={k} style={{ display: 'contents' }}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="tabs" role="tablist">
+          <div className="tabs" role="tablist" aria-label="Content">
             <button className={tab === 'read' ? 'on' : ''} onClick={() => setTab('read')} role="tab" aria-selected={tab === 'read'}>
               Archived copy
             </button>
             <button className={tab === 'highlights' ? 'on' : ''} onClick={() => setTab('highlights')} role="tab" aria-selected={tab === 'highlights'}>
-              Highlights {highlights.length ? `· ${highlights.length}` : ''}
+              Highlights{highlights.length > 0 && <span className="count">{highlights.length}</span>}
             </button>
           </div>
 
-          <div ref={readerRef}>
+          <div ref={readerRef} role="tabpanel">
             {isLoading && !data ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {[90, 100, 96, 70, 100, 84].map((w, i) => (
-                  <div key={i} className="skeleton" style={{ height: 16, width: `${w}%` }} />
+              <div style={{ display: 'grid', gap: 10 }} aria-label="Loading content">
+                {[92, 100, 96, 74, 100, 86].map((w, i) => (
+                  <div key={i} className="skeleton" style={{ height: 14, width: `${w}%`, borderRadius: 6 }} />
                 ))}
               </div>
             ) : tab === 'read' ? (
               data?.markdown ? (
-                <Reader markdown={data.markdown} highlights={highlights} />
+                <Reader markdown={data.markdown} highlights={highlights} note={item.note} />
               ) : (
                 <p className="muted">No archived content for this item.</p>
               )
             ) : highlights.length ? (
-              <div className="reader" style={{ fontSize: 16 }}>
+              <div className="highlights-list">
                 {highlights.map((h, i) => (
                   <blockquote key={i}>{h}</blockquote>
                 ))}
               </div>
             ) : (
-              <p className="muted">Select text in the archived copy to highlight it. Highlights from the browser extension show up here too.</p>
+              <p className="muted" style={{ lineHeight: 1.6 }}>Select text in the archived copy to highlight it. Highlights saved from the browser extension show up here too.</p>
             )}
           </div>
         </div>
       </div>
       {sel && (
-        <button
-          className="btn primary"
-          style={{ position: 'fixed', left: sel.x, top: Math.max(10, sel.y - 46), transform: 'translateX(-50%)', zIndex: 60, height: 32 }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={highlight}
-        >
+        <button className="btn primary highlight-pop" style={{ left: sel.x, top: Math.max(10, sel.y - 44) }} onMouseDown={(e) => e.preventDefault()} onClick={highlight}>
           <Highlighter size={14} /> Highlight
         </button>
       )}

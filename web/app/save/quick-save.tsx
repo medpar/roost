@@ -49,33 +49,33 @@ export default function QuickSave() {
   };
 
   return (
-    <div className="dialog" style={{ width: 'min(440px, 100%)' }}>
+    <div className="dialog quick-save">
       <div className="dialog-head" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {state === 'saving' ? <span className="spinner" style={{ color: 'var(--accent)' }} /> : state === 'error' ? <CircleAlert color="var(--danger)" /> : <Check color="var(--ok)" />}
-        <h3>{state === 'saving' ? 'Saving to Trove…' : state === 'saved' ? 'Saved to Trove' : state === 'exists' ? 'Already in your Trove' : 'Couldn’t save'}</h3>
+        {state === 'saving' ? <span className="spinner" style={{ color: 'var(--text-3)' }} /> : state === 'error' ? <CircleAlert size={18} className="err-icon" /> : <Check size={18} className="ok-icon" />}
+        <h3 role="status">{state === 'saving' ? 'Saving to Trove…' : state === 'saved' ? 'Saved to Trove' : state === 'exists' ? 'Already in your library' : 'Couldn’t save this'}</h3>
       </div>
       <div className="dialog-body">
-        {state === 'error' && <p style={{ color: 'var(--danger)' }}>{err}</p>}
+        {state === 'error' && <p className="form-error">{err}. Try again, or open Trove and add it there.</p>}
         {item && (
           <>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="quick-item">
               <Favicon domain={item.domain} size={20} />
               <div style={{ minWidth: 0 }}>
-                <div className="serif" style={{ fontSize: 20, lineHeight: 1.15 }}>{item.title}</div>
-                <div className="muted" style={{ fontSize: 12.5 }}>{item.domain}</div>
+                <div className="t">{item.title}</div>
+                <div className="d">{item.domain}</div>
               </div>
             </div>
             <div>
-              <div className="field-label">Collection</div>
+              <label className="field-label">Collection</label>
               <CollectionInput value={item.collection || ''} known={stats?.collections} onChange={(v) => patchItem(item.id, { collection: v || null }).then(setItem)} />
             </div>
             <div>
-              <div className="field-label">Tags</div>
+              <label className="field-label">Tags</label>
               <TagInput value={item.tags} known={stats?.tags} onChange={(tags) => { setItem({ ...item, tags }); patchItem(item.id, { tags }); }} />
             </div>
             <div>
-              <div className="field-label">Note</div>
-              <textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== item.note && patchItem(item.id, { note })} placeholder="Optional" />
+              <label className="field-label" htmlFor="qs-note">Note</label>
+              <textarea id="qs-note" className="textarea" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== item.note && patchItem(item.id, { note })} placeholder="Optional" />
             </div>
           </>
         )}

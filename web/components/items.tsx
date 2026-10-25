@@ -1,9 +1,9 @@
 'use client';
-import { ArrowUpRight, Check, CheckCircle2, Circle, Heart, MoreHorizontal } from 'lucide-react';
+import { ArrowUpRight, Check, CheckCircle2, Circle, Heart, MoreHorizontal, Play } from 'lucide-react';
 import { memo, useState } from 'react';
 import { fmtDuration, timeAgo } from './api';
 import type { Item, View } from './types';
-import { Favicon, PLATFORM_TINT, TypeIcon } from './ui';
+import { Favicon, TypeIcon } from './ui';
 
 export type ItemHandlers = {
   onOpen: (it: Item) => void;
@@ -16,49 +16,52 @@ export type ItemHandlers = {
 
 type Props = ItemHandlers & { items: Item[]; view: View; selectedId: string | null; checked: Set<string> };
 
+const open = (it: Item, e: React.MouseEvent, h: ItemHandlers) => (e.metaKey || e.ctrlKey ? window.open(it.url || it.notionUrl, '_blank', 'noopener') : h.onOpen(it));
+const host = (it: Item) => (it.db === 'x' ? it.author.split(' ').pop() || 'x.com' : it.domain);
+
 function Cover({ it }: { it: Item }) {
   const [broken, setBroken] = useState(false);
-  const tint = PLATFORM_TINT[it.platform];
   if (it.cover && !broken) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={it.cover} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />;
   }
-  if ((it.type === 'Post' || it.type === 'Note') && it.excerpt) return <div className="cover-quote">“{it.excerpt.slice(0, 260)}”</div>;
   return (
-    <div className="cover-fallback" style={tint ? ({ '--tint': tint } as React.CSSProperties) : undefined}>
-      <Favicon domain={it.domain} size={28} className="fav" />
+    <div className="cover-fallback">
+      <span className="fav-tile">
+        <Favicon domain={it.domain} size={24} />
+      </span>
       <span className="host">{it.domain || it.type}</span>
     </div>
   );
 }
 
 function badge(it: Item) {
-  if (it.db === 'x') return it.stats?.thread && it.stats.thread > 1 ? `𝕏 · ${it.stats.thread}-post thread` : '𝕏';
-  if (it.type === 'Video' && it.duration) return `▶ ${fmtDuration(it.duration)}`;
-  if (it.readingTime) return `${it.readingTime} min read`;
+  if (it.db === 'x' && it.stats?.thread && it.stats.thread > 1) return `Thread · ${it.stats.thread}`;
+  if (it.type === 'Video' && it.duration) return <><Play size={10} fill="currentColor" strokeWidth={0} />{fmtDuration(it.duration)}</>;
+  if (it.readingTime) return `${it.readingTime} min`;
   return null;
 }
 
 const Meta = ({ it }: { it: Item }) => (
   <div className="meta">
     <Favicon domain={it.domain} size={14} />
-    <span className="host">{it.db === 'x' ? it.author.split(' ').pop() || 'x.com' : it.domain}</span>
-    <span className="sep">·</span>
+    <span className="host">{host(it)}</span>
+    <span className="sep" aria-hidden="true">·</span>
     <TypeIcon type={it.type} size={12} />
-    <span className="sep">·</span>
-    <span title={new Date(it.created).toLocaleString()}>{timeAgo(it.created)}</span>
-    {it.status === 'Broken' && <span className="chip" style={{ height: 18, color: 'var(--danger)' }}>broken</span>}
+    <span className="sep" aria-hidden="true">·</span>
+    <time dateTime={it.created} title={new Date(it.created).toLocaleString()}>{timeAgo(it.created)}</time>
+    {it.status === 'Broken' && <span className="chip danger">Broken</span>}
+    {it.favorite && <Heart size={12} fill="currentColor" className="fav-mark" aria-label="Favorite" />}
   </div>
 );
 
-const Tags = ({ it, onTag }: { it: Item; onTag: (t: string) => void }) =>
+const Tags = ({ it, onTag, max = 3 }: { it: Item; onTag: (t: string) => void; max?: number }) =>
   it.tags.length ? (
     <div className="tags">
-      {it.tags.slice(0, 4).map((t) => (
+      {it.tags.slice(0, max).map((t) => (
         <button
           key={t}
           className="tag"
-          style={{ border: 0, background: 'none', padding: 0 }}
           onClick={(e) => {
             e.stopPropagation();
             onTag(t);
@@ -67,102 +70,134 @@ const Tags = ({ it, onTag }: { it: Item; onTag: (t: string) => void }) =>
           #{t}
         </button>
       ))}
+      {it.tags.length > max && <span className="tag" style={{ background: 'none' }}>+{it.tags.length - max}</span>}
     </div>
   ) : null;
 
-const CardView = memo(function CardView({ it, i, selected, checked, h }: { it: Item; i: number; selected: boolean; checked: boolean; h: ItemHandlers }) {
-  const b = badge(it);
-  // Text posts and notes without media read better as text than behind a placeholder cover.
-  const textual = !it.cover && (it.type === 'Post' || it.type === 'Note');
-  const showExcerpt = it.excerpt && !textual && it.excerpt !== it.title;
+function Actions({ it, h }: { it: Item; h: ItemHandlers }) {
   return (
-    <article
-      className={`card ${textual ? 'textual' : ''} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`}
-      style={{ '--i': Math.min(i, 24) } as React.CSSProperties}
-      onClick={(e) => (e.metaKey || e.ctrlKey ? window.open(it.url || it.notionUrl, '_blank') : h.onOpen(it))}
-      data-id={it.id}
-    >
-      {!textual && (
-        <div className="cover">
-          <Cover it={it} />
-          {b && <span className="cover-badge">{b}</span>}
-        </div>
-      )}
-      <button
-        className={`check ${checked ? 'on' : ''}`}
-        aria-label="Select"
-        onClick={(e) => {
-          e.stopPropagation();
-          h.onCheck(it, e.shiftKey);
-        }}
-      >
-        {checked && <Check size={14} strokeWidth={3} />}
+    <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+      <button className={it.favorite ? 'on' : ''} aria-label={it.favorite ? 'Remove favorite' : 'Favorite'} aria-pressed={it.favorite} onClick={() => h.onFavorite(it)}>
+        <Heart size={15} fill={it.favorite ? 'currentColor' : 'none'} />
       </button>
-      <div className={`card-actions ${it.favorite ? 'show' : ''}`} onClick={(e) => e.stopPropagation()}>
-        <button className={it.favorite ? 'on' : ''} aria-label="Favorite" onClick={() => h.onFavorite(it)}>
-          <Heart size={15} fill={it.favorite ? 'currentColor' : 'none'} />
+      <button aria-label={it.read ? 'Mark unread' : 'Mark read'} onClick={() => h.onRead(it)}>
+        {it.read ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+      </button>
+      {it.url && (
+        <button aria-label="Open original" onClick={() => window.open(it.url, '_blank', 'noopener')}>
+          <ArrowUpRight size={15} />
         </button>
-        <button aria-label={it.read ? 'Mark unread' : 'Mark read'} onClick={() => h.onRead(it)}>
-          {it.read ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-        </button>
-        {it.url && (
-          <button aria-label="Open original" onClick={() => window.open(it.url, '_blank', 'noopener')}>
-            <ArrowUpRight size={15} />
-          </button>
-        )}
-        <button aria-label="More" onClick={(e) => h.onMenu(e, it)}>
-          <MoreHorizontal size={15} />
-        </button>
+      )}
+      <button aria-label="More actions" onClick={(e) => h.onMenu(e, it)}>
+        <MoreHorizontal size={15} />
+      </button>
+    </div>
+  );
+}
+
+function CheckBox({ checked, it, h }: { checked: boolean; it: Item; h: ItemHandlers }) {
+  return (
+    <button
+      className={`check ${checked ? 'on' : ''}`}
+      aria-label={checked ? 'Deselect' : 'Select'}
+      aria-pressed={checked}
+      onClick={(e) => {
+        e.stopPropagation();
+        h.onCheck(it, e.shiftKey);
+      }}
+    >
+      {checked && <Check size={13} className="strong" />}
+    </button>
+  );
+}
+
+const CardView = memo(function CardView({ it, selected, checked, h }: { it: Item; selected: boolean; checked: boolean; h: ItemHandlers }) {
+  // Text posts and notes without media read better as text than behind a placeholder cover.
+  const textual = !it.cover && (it.type === 'Post' || it.type === 'Note' || it.db === 'x');
+  const b = badge(it);
+  const cls = `card ${textual ? 'textual' : ''} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''} ${it.read ? 'is-read' : ''}`;
+  if (textual) {
+    const text = it.excerpt || it.title;
+    const showTitle = it.type === 'Note' && it.title && !text.startsWith(it.title.slice(0, 40));
+    return (
+      <article className={cls} onClick={(e) => open(it, e, h)} data-id={it.id}>
+        <CheckBox checked={checked} it={it} h={h} />
+        <Actions it={it} h={h} />
+        <div className="card-body">
+          <div className="card-author">
+            <Favicon domain={it.domain} size={16} />
+            <span>{it.author || host(it)}</span>
+          </div>
+          {showTitle && <h3 className="card-title">{it.title}</h3>}
+          <p className="card-text">{text}</p>
+          {it.note && <p className="card-note">{it.note}</p>}
+          <div className="footer">
+            <Tags it={it} onTag={h.onTag} />
+            <Meta it={it} />
+          </div>
+        </div>
+      </article>
+    );
+  }
+  const showExcerpt = it.excerpt && it.excerpt !== it.title;
+  return (
+    <article className={cls} onClick={(e) => open(it, e, h)} data-id={it.id}>
+      <div className="cover">
+        <Cover it={it} />
+        {b && <span className="cover-badge">{b}</span>}
       </div>
+      <CheckBox checked={checked} it={it} h={h} />
+      <Actions it={it} h={h} />
       <div className="card-body">
-        <h3 className="card-title" style={it.read ? { color: 'var(--ink-2)' } : undefined}>
-          {it.title || it.url}
-        </h3>
+        <h3 className="card-title">{it.title || it.url}</h3>
         {showExcerpt && <p className="card-excerpt">{it.excerpt}</p>}
         {it.note && <p className="card-note">{it.note}</p>}
-        <Tags it={it} onTag={h.onTag} />
-        <Meta it={it} />
+        <div className="footer">
+          <Tags it={it} onTag={h.onTag} />
+          <Meta it={it} />
+        </div>
       </div>
     </article>
   );
 });
 
-const RowView = memo(function RowView({ it, i, selected, checked, h }: { it: Item; i: number; selected: boolean; checked: boolean; h: ItemHandlers }) {
+const RowView = memo(function RowView({ it, selected, checked, h }: { it: Item; selected: boolean; checked: boolean; h: ItemHandlers }) {
   const [broken, setBroken] = useState(false);
   return (
-    <div className={`row ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`} style={{ '--i': Math.min(i, 30) } as React.CSSProperties} onClick={() => h.onOpen(it)} data-id={it.id}>
-      <div
+    <div className={`row ${selected ? 'selected' : ''} ${checked ? 'checked' : ''} ${it.read ? 'is-read' : ''}`} onClick={(e) => open(it, e, h)} data-id={it.id}>
+      <button
+        className={`row-lead ${checked ? 'on' : ''}`}
+        aria-label={checked ? 'Deselect' : 'Select'}
+        aria-pressed={checked}
         onClick={(e) => {
           e.stopPropagation();
           h.onCheck(it, e.shiftKey);
         }}
-        style={{ display: 'grid', placeItems: 'center' }}
       >
-        {checked ? <span className="check on" style={{ position: 'static', opacity: 1 }}><Check size={13} strokeWidth={3} /></span> : <Favicon domain={it.domain} size={22} className="fav" />}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div className="row-title" style={it.read ? { color: 'var(--ink-2)', fontWeight: 500 } : undefined}>
-          {it.favorite && <Heart size={12} fill="var(--accent)" color="var(--accent)" style={{ display: 'inline', marginRight: 6, verticalAlign: '-1px' }} />}
-          {it.title || it.url}
-        </div>
+        {checked ? <Check size={13} className="strong" /> : <Favicon domain={it.domain} size={16} />}
+      </button>
+      <div className="row-main">
+        <div className="row-title">{it.title || it.url}</div>
         {(it.note || it.excerpt) && <div className="row-excerpt">{it.note || it.excerpt}</div>}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="row-sub">
           <Meta it={it} />
           <Tags it={it} onTag={h.onTag} />
         </div>
       </div>
-      <div className="row-thumb">{it.cover && !broken ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={it.cover} alt="" loading="lazy" onError={() => setBroken(true)} />
-      ) : null}</div>
+      <div className="row-thumb">
+        {it.cover && !broken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={it.cover} alt="" loading="lazy" onError={() => setBroken(true)} />
+        ) : null}
+      </div>
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        <button className={`icon-btn ${it.favorite ? 'on' : ''}`} aria-label="Favorite" onClick={() => h.onFavorite(it)}>
+        <button className={`icon-btn sm ${it.favorite ? 'on' : ''}`} aria-label={it.favorite ? 'Remove favorite' : 'Favorite'} aria-pressed={it.favorite} onClick={() => h.onFavorite(it)}>
           <Heart size={15} fill={it.favorite ? 'currentColor' : 'none'} />
         </button>
-        <button className="icon-btn" aria-label="Toggle read" onClick={() => h.onRead(it)}>
+        <button className="icon-btn sm" aria-label={it.read ? 'Mark unread' : 'Mark read'} onClick={() => h.onRead(it)}>
           {it.read ? <CheckCircle2 size={15} /> : <Circle size={15} />}
         </button>
-        <button className="icon-btn" aria-label="More" onClick={(e) => h.onMenu(e, it)}>
+        <button className="icon-btn sm" aria-label="More actions" onClick={(e) => h.onMenu(e, it)}>
           <MoreHorizontal size={15} />
         </button>
       </div>
@@ -172,12 +207,19 @@ const RowView = memo(function RowView({ it, i, selected, checked, h }: { it: Ite
 
 const HeadlineView = memo(function HeadlineView({ it, selected, checked, h }: { it: Item; selected: boolean; checked: boolean; h: ItemHandlers }) {
   return (
-    <div className={`headline ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`} onClick={() => h.onOpen(it)} onContextMenu={(e) => { e.preventDefault(); h.onMenu(e, it); }} data-id={it.id}>
+    <div
+      className={`headline ${selected ? 'selected' : ''} ${checked ? 'checked' : ''} ${it.read ? 'is-read' : ''}`}
+      onClick={(e) => open(it, e, h)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        h.onMenu(e, it);
+      }}
+      data-id={it.id}
+    >
       <Favicon domain={it.domain} size={16} />
-      <span className="t" style={it.read ? { color: 'var(--ink-2)' } : undefined}>
-        {it.favorite && <Heart size={11} fill="var(--accent)" color="var(--accent)" style={{ display: 'inline', marginRight: 6 }} />}
+      <span className="t">
         {it.title || it.url}
-        <span className="muted" style={{ marginLeft: 10, fontSize: 12.5 }}>{it.domain}</span>
+        <span className="host">{host(it)}</span>
       </span>
       <span className="d">{it.tags.slice(0, 2).map((t) => `#${t}`).join(' ')}</span>
       <span className="d">{timeAgo(it.created)}</span>
@@ -185,24 +227,24 @@ const HeadlineView = memo(function HeadlineView({ it, selected, checked, h }: { 
   );
 });
 
-function Tile({ it, i, h }: { it: Item; i: number; h: ItemHandlers }) {
+function Tile({ it, h }: { it: Item; h: ItemHandlers }) {
   const [broken, setBroken] = useState(false);
   if (!it.cover || broken) {
     return (
-      <div className="tile text" style={{ '--i': Math.min(i, 30) } as React.CSSProperties} onClick={() => h.onOpen(it)}>
+      <button className="tile text" onClick={(e) => open(it, e, h)} data-id={it.id}>
         {it.title}
-        <div className="meta" style={{ marginTop: 10 }}>
-          <Favicon domain={it.domain} size={14} /> {it.domain}
+        <div className="meta">
+          <Favicon domain={it.domain} size={14} /> <span className="host">{host(it)}</span>
         </div>
-      </div>
+      </button>
     );
   }
   return (
-    <div className="tile" style={{ '--i': Math.min(i, 30) } as React.CSSProperties} onClick={() => h.onOpen(it)}>
+    <button className="tile" onClick={(e) => open(it, e, h)} data-id={it.id} aria-label={it.title}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={it.cover} alt="" loading="lazy" onError={() => setBroken(true)} />
       <div className="cap">{it.title}</div>
-    </div>
+    </button>
   );
 }
 
@@ -211,14 +253,14 @@ export function Items({ items, view, selectedId, checked, ...h }: Props) {
   if (view === 'list')
     return (
       <div className="list">
-        {items.map((it, i) => (
-          <RowView key={it.id} it={it} i={i} selected={it.id === selectedId} checked={checked.has(it.id)} h={handlers} />
+        {items.map((it) => (
+          <RowView key={it.id} it={it} selected={it.id === selectedId} checked={checked.has(it.id)} h={handlers} />
         ))}
       </div>
     );
   if (view === 'headlines')
     return (
-      <div>
+      <div className="headlines">
         {items.map((it) => (
           <HeadlineView key={it.id} it={it} selected={it.id === selectedId} checked={checked.has(it.id)} h={handlers} />
         ))}
@@ -227,15 +269,15 @@ export function Items({ items, view, selectedId, checked, ...h }: Props) {
   if (view === 'mood')
     return (
       <div className="mood">
-        {items.map((it, i) => (
-          <Tile key={it.id} it={it} i={i} h={handlers} />
+        {items.map((it) => (
+          <Tile key={it.id} it={it} h={handlers} />
         ))}
       </div>
     );
   return (
     <div className={`grid ${checked.size ? 'selecting' : ''}`}>
-      {items.map((it, i) => (
-        <CardView key={it.id} it={it} i={i} selected={it.id === selectedId} checked={checked.has(it.id)} h={handlers} />
+      {items.map((it) => (
+        <CardView key={it.id} it={it} selected={it.id === selectedId} checked={checked.has(it.id)} h={handlers} />
       ))}
     </div>
   );
@@ -244,16 +286,16 @@ export function Items({ items, view, selectedId, checked, ...h }: Props) {
 export function Skeletons({ view }: { view: View }) {
   if (view === 'cards' || view === 'mood')
     return (
-      <div className="grid">
+      <div className="grid" aria-hidden="true">
         {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="skeleton" style={{ height: 300 }} />
+          <div key={i} className="skeleton" style={{ height: 268 }} />
         ))}
       </div>
     );
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 8 }} aria-hidden="true">
       {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="skeleton" style={{ height: view === 'list' ? 88 : 34 }} />
+        <div key={i} className="skeleton" style={{ height: view === 'list' ? 72 : 34, borderRadius: 8 }} />
       ))}
     </div>
   );

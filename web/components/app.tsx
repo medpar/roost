@@ -1,7 +1,8 @@
 'use client';
-import { ArrowDownUp, CheckCircle2, Copy, ExternalLink, FolderInput, Heart, HelpCircle, Image as ImageIcon, LayoutGrid, List, Menu as MenuIcon, Plus, Rows3, Search, Tag, Trash2, X } from 'lucide-react';
+import { ArrowDownUp, Bot, CheckCircle2, Copy, ExternalLink, FolderInput, Heart, Image as ImageIcon, Inbox, Keyboard, LayoutGrid, List, Menu as MenuIcon, Plus, Rows3, Search, SearchX, Tag, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddDialog } from './add';
+import { AgentPanel } from './agent';
 import { api, patchItem, refreshAll, removeLocal, useItems, useStats } from './api';
 import { Detail } from './detail';
 import { Items, Skeletons } from './items';
@@ -27,36 +28,37 @@ function parseScope(v: string | null): Scope {
   return i > 0 ? ({ kind: v.slice(0, i), value: v.slice(i + 1) } as Scope) : ({ kind: v } as Scope);
 }
 
-function titleFor(s: Scope): { title: React.ReactNode; plain: string } {
+function titleFor(s: Scope): { title: string; plain: string } {
+  const t = (title: string, plain = title) => ({ title, plain });
   switch (s.kind) {
     case 'all':
-      return { title: 'Everything', plain: 'Everything' };
+      return t('All items');
     case 'unsorted':
-      return { title: 'Unsorted', plain: 'Unsorted' };
+      return t('Unsorted');
     case 'favorites':
-      return { title: 'Favorites', plain: 'Favorites' };
+      return t('Favorites');
     case 'unread':
-      return { title: <>Read <em>later</em></>, plain: 'Read later' };
+      return t('Read later');
     case 'highlights':
-      return { title: 'Highlights', plain: 'Highlights' };
+      return t('Highlights');
     case 'notes':
-      return { title: 'With notes', plain: 'With notes' };
+      return t('With notes');
     case 'reminders':
-      return { title: 'Reminders', plain: 'Reminders' };
+      return t('Reminders');
     case 'broken':
-      return { title: 'Broken links', plain: 'Broken links' };
+      return t('Broken links');
     case 'notag':
-      return { title: 'Untagged', plain: 'Untagged' };
+      return t('Untagged');
     case 'collection': {
       const parts = (s.value || '').split('/');
-      return { title: parts[parts.length - 1], plain: s.value || '' };
+      return t(parts[parts.length - 1], s.value || '');
     }
     case 'tag':
-      return { title: <><em>#</em>{s.value}</>, plain: `#${s.value}` };
+      return t(`#${s.value}`);
     case 'type':
-      return { title: plural(s.value || ''), plain: plural(s.value || '') };
+      return t(plural(s.value || ''));
     case 'source':
-      return s.value === 'x' ? { title: <><em>𝕏</em> Bookmarks</>, plain: 'X Bookmarks' } : { title: 'Library', plain: 'Library' };
+      return s.value === 'x' ? t('X bookmarks') : t('Library');
   }
 }
 
@@ -77,7 +79,8 @@ export default function TroveApp() {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [bulkDialog, setBulkDialog] = useState<'move' | 'tag' | null>(null);
-  const [theme, setTheme] = useState('system');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [agent, setAgent] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -100,9 +103,8 @@ export default function TroveApp() {
     })();
     setView((p.get('view') as View) || savedView || 'cards');
     setSelected(p.get('item'));
-    try {
-      setTheme(localStorage.getItem('trove-theme') || 'system');
-    } catch { /* private mode */ }
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+    if (p.get('agent')) setAgent(p.get('agent') === '1' ? '' : p.get('agent'));
     if (p.get('add')) setAdding(p.get('add') === '1' ? '' : p.get('add'));
     setReady(true);
   }, []);
@@ -157,17 +159,19 @@ export default function TroveApp() {
   };
 
   const cycleTheme = () => {
-    const next = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+    const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
+    // Flip every token at once instead of letting each transition smear the change.
+    const css = document.createElement('style');
+    css.textContent = '*,*::before,*::after{transition:none!important}';
+    document.head.appendChild(css);
+    if (next === 'dark') document.documentElement.dataset.theme = 'dark';
+    else delete document.documentElement.dataset.theme;
+    void document.body.offsetHeight;
+    requestAnimationFrame(() => css.remove());
     try {
-      if (next === 'system') {
-        localStorage.removeItem('trove-theme');
-        delete document.documentElement.dataset.theme;
-      } else {
-        localStorage.setItem('trove-theme', next);
-        document.documentElement.dataset.theme = next;
-      }
-    } catch { /* ignore */ }
+      localStorage.setItem('trove-theme', next);
+    } catch { /* private mode */ }
   };
 
   const toggle = async (it: Item, field: 'favorite' | 'read') => {
@@ -261,6 +265,8 @@ export default function TroveApp() {
       { label: it.read ? 'Mark unread' : 'Mark read', icon: <CheckCircle2 size={15} />, run: () => toggle(it, 'read') },
       { label: 'Select', icon: <CheckCircle2 size={15} />, run: () => check(it, false) },
       'sep',
+      { label: 'Ask the agent about this', icon: <Bot size={15} />, run: () => setAgent(`About “${it.title}” (id ${it.id}): `) },
+      'sep',
       { label: 'Delete', icon: <Trash2 size={15} />, danger: true, run: () => del([it]) },
     ], 'right');
   };
@@ -315,7 +321,7 @@ export default function TroveApp() {
         setPalette(true);
         return;
       }
-      if (palette || adding !== null || help || bulkDialog) return;
+      if (palette || adding !== null || help || bulkDialog || agent !== null) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const idx = items.findIndex((i) => i.id === selected);
       const cur = idx >= 0 ? items[idx] : null;
@@ -323,7 +329,7 @@ export default function TroveApp() {
         const next = items[Math.max(0, Math.min(items.length - 1, (idx < 0 ? -1 : idx) + d))];
         if (next) {
           setSelected(next.id);
-          document.querySelector(`[data-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          document.querySelector(`[data-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
         }
       };
       switch (e.key) {
@@ -385,7 +391,7 @@ export default function TroveApp() {
           break;
       }
     },
-    [items, selected, checked, palette, adding, help, bulkDialog],
+    [items, selected, checked, palette, adding, help, bulkDialog, agent],
   );
 
   const head = titleFor(scope);
@@ -398,16 +404,16 @@ export default function TroveApp() {
 
   return (
     <div className="app">
-      <Sidebar stats={stats} scope={scope} onScope={changeScope} onSearch={() => setPalette(true)} theme={theme} onTheme={cycleTheme} open={sideOpen} onClose={() => setSideOpen(false)} />
+      <Sidebar stats={stats} scope={scope} onScope={changeScope} onSearch={() => setPalette(true)} onAgent={() => setAgent('')} theme={theme} onTheme={cycleTheme} open={sideOpen} onClose={() => setSideOpen(false)} />
       <main className="main">
-        <div className="main-scroll scroll" onScroll={(e) => setScrolled((e.target as HTMLElement).scrollTop > 8)}>
+        <div className="main-scroll scroll" onScroll={(e) => setScrolled((e.target as HTMLElement).scrollTop > 4)}>
           <header className={`topbar ${scrolled ? 'scrolled' : ''}`}>
             <div className="topbar-inner">
               <button className="icon-btn only-mobile" onClick={() => setSideOpen(true)} aria-label="Open menu">
                 <MenuIcon size={19} />
               </button>
               <label className="search">
-                <Search size={16} color="var(--muted)" />
+                <Search size={15} />
                 <input
                   ref={searchRef}
                   value={input}
@@ -419,21 +425,23 @@ export default function TroveApp() {
                       setQ('');
                     }
                   }}
-                  placeholder={`Search ${head.plain.toLowerCase()}…  try #tag, type:video, site:github.com, "phrase"`}
+                  placeholder={scope.kind === 'all' ? 'Search your library' : `Search in ${head.plain}`}
                   aria-label="Search"
+                  type="search"
+                  enterKeyHint="search"
                 />
                 {input ? (
-                  <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={() => { setInput(''); setQ(''); }} aria-label="Clear search">
+                  <button className="icon-btn sm" onClick={() => { setInput(''); setQ(''); }} aria-label="Clear search">
                     <X size={14} />
                   </button>
                 ) : (
                   <span className="kbd hide-mobile">/</span>
                 )}
               </label>
-              <span style={{ flex: 1 }} className="hide-mobile" />
-              <div className="seg hide-mobile" role="group" aria-label="View">
+              <span className="spacer" />
+              <div className="seg hide-mobile" role="group" aria-label="Layout">
                 {([['cards', LayoutGrid, 'Cards'], ['list', List, 'List'], ['headlines', Rows3, 'Headlines'], ['mood', ImageIcon, 'Moodboard']] as const).map(([v, I, label]) => (
-                  <button key={v} className={view === v ? 'on' : ''} onClick={() => changeView(v)} aria-label={label} title={label}>
+                  <button key={v} className={view === v ? 'on' : ''} onClick={() => changeView(v)} aria-label={label} aria-pressed={view === v} title={label}>
                     <I size={16} />
                   </button>
                 ))}
@@ -441,7 +449,10 @@ export default function TroveApp() {
               <button className="icon-btn" aria-label="Sort" title="Sort" onClick={(e) => menu.open(e, SORTS.map((s) => ({ label: s.label, on: sort === s.id, run: () => setSort(s.id) })), 'right')}>
                 <ArrowDownUp size={17} />
               </button>
-              <button className="btn primary" onClick={() => setAdding('')}>
+              <button className="btn hide-mobile" onClick={() => setAgent('')}>
+                <Bot size={15} /> Agent
+              </button>
+              <button className="btn primary" onClick={() => setAdding('')} aria-label="Add">
                 <Plus size={16} /> <span className="hide-mobile">Add</span>
               </button>
             </div>
@@ -449,10 +460,10 @@ export default function TroveApp() {
 
           <div className="page-head">
             <h1 className="page-title">{head.title}</h1>
-            <span className="page-count">{count !== undefined ? `${count.toLocaleString()} item${count === 1 ? '' : 's'}` : items.length ? `${items.length}${list.done ? '' : '+'}` : ''}</span>
-            <span style={{ flex: 1 }} />
+            <span className="page-count">{count !== undefined ? count.toLocaleString() : items.length ? `${items.length}${list.done ? '' : '+'}` : ''}</span>
+            <span className="spacer" />
             <button className="icon-btn hide-mobile" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={() => setHelp(true)}>
-              <HelpCircle size={17} />
+              <Keyboard size={17} />
             </button>
           </div>
 
@@ -461,7 +472,7 @@ export default function TroveApp() {
               {scope.kind !== 'all' && (
                 <span className="filter-chip">
                   {head.plain}
-                  <button onClick={() => changeScope({ kind: 'all' })} aria-label="Clear filter">
+                  <button onClick={() => changeScope({ kind: 'all' })} aria-label={`Remove filter ${head.plain}`}>
                     <X size={12} />
                   </button>
                 </span>
@@ -477,25 +488,35 @@ export default function TroveApp() {
             </div>
           )}
 
-          <section className="items" aria-busy={loading}>
+          <section className="items" aria-busy={loading} aria-label="Items">
             {loading ? (
               <Skeletons view={view} />
             ) : list.error && !items.length ? (
-              <div className="empty">
-                <h2>Couldn’t load your library.</h2>
-                <p>{String(list.error.message || list.error)}</p>
-                <button className="btn" style={{ marginTop: 14 }} onClick={() => list.mutate()}>Try again</button>
+              <div className="empty" role="alert">
+                <span className="empty-icon"><TriangleAlert size={20} /></span>
+                <h2>Couldn’t load your library</h2>
+                <p>{String(list.error.message || list.error)}. Check your connection, then try again.</p>
+                <div className="actions">
+                  <button className="btn" onClick={() => list.mutate()}>Try again</button>
+                </div>
               </div>
             ) : !items.length ? (
               <div className="empty">
-                <h2>{q ? 'No matches.' : scope.kind === 'all' ? 'Your trove is empty.' : 'Nothing here yet.'}</h2>
+                <span className="empty-icon">{q ? <SearchX size={20} /> : <Inbox size={20} />}</span>
+                <h2>{q ? 'No matches' : scope.kind === 'all' ? 'Your library is empty' : 'Nothing here yet'}</h2>
                 <p>
                   {q ? (
-                    <>Try fewer words, or search operators like <code>#tag</code>, <code>type:article</code>, <code>site:youtube.com</code>, <code>-word</code>.</>
+                    <>Try fewer words, or narrow it down with <code>#tag</code>, <code>type:article</code>, <code>site:youtube.com</code> or <code>-word</code>.</>
                   ) : (
-                    <>Paste a link anywhere (<span className="kbd">⌘V</span>), drop one onto the window, or press <span className="kbd">N</span>. Save from your phone, browser and AI agents — see <a href="/settings" style={{ color: 'var(--accent)' }}>Integrations</a>.</>
+                    <>Paste a link anywhere, drop one on the window, or press <span className="kbd">N</span>. You can also save from your phone, the browser extension, the CLI and AI agents.</>
                   )}
                 </p>
+                {!q && (
+                  <div className="actions">
+                    <button className="btn primary" onClick={() => setAdding('')}><Plus size={15} /> Add a link</button>
+                    <a className="btn" href="/settings">Ways to save</a>
+                  </div>
+                )}
               </div>
             ) : (
               <Items
@@ -512,24 +533,26 @@ export default function TroveApp() {
               />
             )}
             <div ref={sentinel} style={{ height: 1 }} />
-            {!loading && items.length > 0 && !list.done && <div style={{ display: 'grid', placeItems: 'center', padding: 24 }}><span className="spinner" style={{ color: 'var(--muted)' }} /></div>}
-            {!loading && list.done && items.length > 12 && <p className="mono muted" style={{ textAlign: 'center', padding: 30 }}>— {items.length.toLocaleString()} items —</p>}
+            {!loading && items.length > 0 && !list.done && <div className="loading-more"><span className="spinner" aria-label="Loading more" /></div>}
+            {!loading && list.done && items.length > 12 && <p className="end-note">{items.length.toLocaleString()} items</p>}
           </section>
         </div>
       </main>
 
-      {selected && <Detail key={selected} id={selected} seed={selectedItem} stats={stats} onClose={() => setSelected(null)} onDelete={(it) => del([it])} />}
+      {selected && <Detail id={selected} seed={selectedItem} stats={stats} onClose={() => setSelected(null)} onDelete={(it) => del([it])} onAsk={(it) => setAgent(`About “${it.title}” (id ${it.id}): `)} />}
 
       {checked.size > 0 && (
         <div className="bulk" role="toolbar" aria-label="Selection">
-          <strong style={{ fontSize: 13, marginRight: 6 }}>{checked.size} selected</strong>
-          <button className="btn" onClick={() => setBulkDialog('move')}><FolderInput size={15} /> Move</button>
-          <button className="btn" onClick={() => setBulkDialog('tag')}><Tag size={15} /> Tag</button>
-          <button className="btn" onClick={() => bulk('read')}><CheckCircle2 size={15} /> Read</button>
-          <button className="btn" onClick={() => bulk('favorite')}><Heart size={15} /> Favorite</button>
-          <button className="btn" onClick={() => bulk('delete')}><Trash2 size={15} /> Delete</button>
-          <button className="btn" onClick={() => setChecked(new Set(items.map((i) => i.id)))}>All</button>
-          <button className="icon-btn" style={{ color: 'inherit' }} onClick={() => setChecked(new Set())} aria-label="Clear selection"><X size={16} /></button>
+          <span className="count">{checked.size} selected</span>
+          <span className="divider" />
+          <button onClick={() => setBulkDialog('move')}><FolderInput size={15} /> Move</button>
+          <button onClick={() => setBulkDialog('tag')}><Tag size={15} /> Tag</button>
+          <button onClick={() => bulk('read')}><CheckCircle2 size={15} /> Mark read</button>
+          <button onClick={() => bulk('favorite')}><Heart size={15} /> Favorite</button>
+          <button onClick={() => bulk('delete')}><Trash2 size={15} /> Delete</button>
+          <span className="divider" />
+          <button onClick={() => setChecked(new Set(items.map((i) => i.id)))}>Select all</button>
+          <button onClick={() => setChecked(new Set())} aria-label="Clear selection"><X size={15} /></button>
         </div>
       )}
 
@@ -543,6 +566,7 @@ export default function TroveApp() {
           onOpen={(it) => setSelected(it.id)}
         />
       )}
+      {agent !== null && <AgentPanel initial={agent} onClose={() => setAgent(null)} onOpen={(id) => setSelected(id)} />}
       {palette && (
         <Palette
           stats={stats}
@@ -550,6 +574,7 @@ export default function TroveApp() {
           onScope={changeScope}
           onOpen={(it) => setSelected(it.id)}
           onAdd={(t) => setAdding(t || '')}
+          onAgent={(t) => setAgent(t || '')}
           onView={changeView}
           onTheme={cycleTheme}
           onSearch={(term) => {
@@ -571,38 +596,42 @@ function BulkDialog({ kind, stats, count, onClose, onApply }: { kind: 'move' | '
   return (
     <Dialog onClose={onClose} label={kind === 'move' ? 'Move items' : 'Tag items'}>
       <div className="dialog-head">
-        <h3>{kind === 'move' ? `Move ${count} items` : `Tag ${count} items`}</h3>
+        <h3>{kind === 'move' ? `Move ${count} item${count === 1 ? '' : 's'}` : `Tag ${count} item${count === 1 ? '' : 's'}`}</h3>
+        <p>{kind === 'move' ? 'Pick a collection, or type a new one. Leave it empty to move them to Unsorted.' : 'These tags are added to the tags each item already has.'}</p>
       </div>
       <div className="dialog-body">
-        {kind === 'move' ? <CollectionInput value={value} onChange={setValue} known={stats?.collections} /> : <TagInput value={tags} onChange={setTags} known={stats?.tags} />}
+        <div>
+          <label className="field-label">{kind === 'move' ? 'Collection' : 'Tags'}</label>
+          {kind === 'move' ? <CollectionInput value={value} onChange={setValue} known={stats?.collections} /> : <TagInput value={tags} onChange={setTags} known={stats?.tags} />}
+        </div>
       </div>
       <div className="dialog-foot">
         <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={() => onApply(kind === 'move' ? value : tags)}>Apply</button>
+        <button className="btn primary" onClick={() => onApply(kind === 'move' ? value : tags)} disabled={kind === 'tag' && !tags.length}>{kind === 'move' ? 'Move' : 'Add tags'}</button>
       </div>
     </Dialog>
   );
 }
 
 function Shortcuts({ onClose }: { onClose: () => void }) {
-  const rows: [string, string][] = [
-    ['⌘K', 'Search & commands'], ['/', 'Filter this view'], ['N', 'Add link or note'], ['⌘V', 'Paste a link anywhere to save it'],
-    ['J / K', 'Next / previous item'], ['Esc', 'Close panel or selection'], ['O', 'Open original'], ['F', 'Favorite'], ['R', 'Mark read / unread'],
-    ['X', 'Select'], ['⌫', 'Delete (undo for 5s)'], ['1–4', 'Cards, list, headlines, moodboard'],
+  const rows: [string[], string][] = [
+    [['⌘', 'K'], 'Search and commands'], [['/'], 'Filter this view'], [['N'], 'Add a link or note'], [['⌘', 'V'], 'Paste a link anywhere to save it'],
+    [['J'], 'Next item'], [['K'], 'Previous item'], [['O'], 'Open original'], [['F'], 'Favorite'], [['R'], 'Mark read or unread'],
+    [['X'], 'Select'], [['⌫'], 'Delete, with undo'], [['1'], 'Cards'], [['2'], 'List'], [['3'], 'Headlines'], [['4'], 'Moodboard'], [['Esc'], 'Close panel or clear selection'],
   ];
   return (
     <Dialog onClose={onClose} label="Keyboard shortcuts">
       <div className="dialog-head"><h3>Keyboard shortcuts</h3></div>
-      <div className="dialog-body" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '10px 18px', alignItems: 'center' }}>
-        {rows.map(([k, v]) => (
-          <div key={k} style={{ display: 'contents' }}>
-            <span><span className="kbd" style={{ fontSize: 12 }}>{k}</span></span>
-            <span>{v}</span>
-          </div>
-        ))}
-      </div>
-      <div className="dialog-body" style={{ paddingTop: 0 }}>
-        <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+      <div className="dialog-body">
+        <div className="shortcuts">
+          {rows.map(([k, v]) => (
+            <div key={v} style={{ display: 'contents' }}>
+              <span className="kbds">{k.map((x) => <span key={x} className="kbd">{x}</span>)}</span>
+              <span>{v}</span>
+            </div>
+          ))}
+        </div>
+        <p className="field-hint" style={{ lineHeight: 1.7 }}>
           Search operators: <code>#tag</code> <code>-#tag</code> <code>type:video</code> <code>site:github.com</code> <code>collection:&quot;Dev/AI&quot;</code> <code>is:fav</code> <code>is:unread</code> <code>created:&gt;2025-01</code> <code>&quot;exact phrase&quot;</code> <code>-word</code> <code>match:OR</code>
         </p>
       </div>

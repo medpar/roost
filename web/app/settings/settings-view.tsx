@@ -1,31 +1,11 @@
 'use client';
-import { ArrowLeft, Bot, Check, Copy, Download, Eye, EyeOff, Globe, Link2, LogOut, MonitorSmartphone, Puzzle, Smartphone, Upload, Wrench } from 'lucide-react';
+import { ArrowLeft, Copy, Download, ExternalLink, Eye, EyeOff, KeyRound, Link2, LogOut, MonitorSmartphone, Puzzle, Smartphone, Upload, Wrench } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { api, refreshAll } from '@/components/api';
-import { useToast } from '@/components/ui';
+import { CodeBox as Code, useToast } from '@/components/ui';
 
 type Me = { publicUrl: string; notion: { library: string; x: string }; apiKeys: { name: string; key: string }[]; cron: boolean };
-
-function Code({ children }: { children: string }) {
-  const [ok, setOk] = useState(false);
-  return (
-    <div className="codebox">
-      {children}
-      <button
-        className="icon-btn"
-        aria-label="Copy"
-        onClick={() => {
-          navigator.clipboard.writeText(children);
-          setOk(true);
-          setTimeout(() => setOk(false), 1400);
-        }}
-      >
-        {ok ? <Check size={15} /> : <Copy size={15} />}
-      </button>
-    </div>
-  );
-}
 
 // ---------- import parsers ----------
 
@@ -117,8 +97,6 @@ export default function SettingsView() {
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(location.origin), []);
   const base = me?.publicUrl || origin;
-  const key = me?.apiKeys.find((k) => /agent|claude/i.test(k.name)) || me?.apiKeys[0];
-  const keyFor = (n: RegExp) => me?.apiKeys.find((k) => n.test(k.name)) || key;
   const mask = (k?: string) => (k ? `${k.slice(0, 6)}…${k.slice(-4)}` : '');
 
   useEffect(() => {
@@ -147,115 +125,119 @@ export default function SettingsView() {
   };
 
   const mcpUrl = `${base}/api/mcp`;
-  const claudeKey = keyFor(/claude/i)?.key || '<api key>';
-  const hermesKey = keyFor(/hermes/i)?.key || '<api key>';
-  const instinctKey = keyFor(/instinct/i)?.key || '<api key>';
+  const shownKey = '<api key>';
 
   return (
     <div className="settings">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="settings-nav">
         <a className="btn ghost" href="/">
           <ArrowLeft size={16} /> Library
         </a>
-        <span style={{ flex: 1 }} />
+        <span className="spacer" />
         <button className="btn ghost" onClick={async () => { await api('/api/auth/logout', { method: 'POST' }); location.href = '/login'; }}>
           <LogOut size={15} /> Sign out
         </button>
       </div>
-      <div>
-        <h1 className="page-title" style={{ fontSize: 48 }}>
-          Settings <em>&amp;</em> integrations
-        </h1>
-        <p className="muted" style={{ marginTop: 10, fontSize: 15 }}>Save from every device and every assistant. Everything lands in your Notion databases.</p>
+      <div className="settings-head">
+        <h1>Settings</h1>
+        <p>Save from every device and tool. Everything lands in your Notion databases.</p>
       </div>
 
       <section>
         <h2>Save from anywhere</h2>
         <div className="cards-2">
           <div className="mini-card">
-            <h3><Puzzle size={17} /> Browser extension</h3>
-            <p style={{ fontSize: 13 }}>Brave, Chrome, Edge, Arc on macOS, Windows and Linux. One-click save (shows when a page is already saved), right-click links/images, save selections as highlights, import + sync browser bookmarks, and your X bookmarks.</p>
+            <h3><Puzzle size={16} /> Browser extension</h3>
+            <p>Brave, Chrome, Edge and Arc on macOS, Windows and Linux. Save the page you’re on, links, images and selections, import your bookmarks, and keep your X bookmarks in sync.</p>
             <a className="btn" href="https://github.com/medpar/trove/releases/latest" target="_blank" rel="noreferrer"><Download size={15} /> Download</a>
           </div>
           <div className="mini-card">
-            <h3><Smartphone size={17} /> iPhone, iPad & Mac</h3>
-            <p style={{ fontSize: 13 }}>Install the “Save to Trove” Shortcut. It appears in the Share sheet of every app (Safari, YouTube, X, Reddit…) and in the macOS Share menu. It asks for your API key once on install.</p>
-            <a className="btn" href="/trove.shortcut"><Download size={15} /> Get the Shortcut</a>
+            <h3><Smartphone size={16} /> iPhone, iPad and Mac</h3>
+            <p>The Save to Trove shortcut adds Trove to the Share sheet in every app and to the macOS Share menu. It asks for an API key once.</p>
+            <a className="btn" href="/trove.shortcut"><Download size={15} /> Get the shortcut</a>
           </div>
           <div className="mini-card">
-            <h3><MonitorSmartphone size={17} /> Install the app</h3>
-            <p style={{ fontSize: 13 }}>Install Trove from your browser (⋯ → Install / Add to Dock / Add to Home Screen). On Android, Windows and ChromeOS it then shows up in the system share sheet.</p>
+            <h3><MonitorSmartphone size={16} /> Install the app</h3>
+            <p>Install Trove from your browser menu (Install, Add to Dock, or Add to Home Screen). On Android, Windows and ChromeOS it then appears in the system share sheet.</p>
           </div>
           <div className="mini-card">
-            <h3><Link2 size={17} /> Bookmarklet</h3>
-            <p style={{ fontSize: 13 }}>Any browser, any OS. Drag this to your bookmarks bar; selected text is saved as a highlight.</p>
-            <a ref={bookmarklet} className="btn primary" onClick={(e) => e.preventDefault()} style={{ alignSelf: 'flex-start' }}>
-              ＋ Save to Trove
+            <h3><Link2 size={16} /> Bookmarklet</h3>
+            <p>Works in any browser. Drag the button to your bookmarks bar. Selected text is saved as a highlight.</p>
+            <a ref={bookmarklet} className="btn primary" onClick={(e) => e.preventDefault()}>
+              Save to Trove
             </a>
           </div>
         </div>
       </section>
 
       <section>
-        <h2>AI agents & assistants</h2>
-        <p>Any agent can save links or content to Trove and search your library: through the MCP server (best), the REST API, or the skill file. Each key records its name as “Via”, so you can see which assistant saved what.</p>
-        <div className="field-label">API keys</div>
-        <div style={{ display: 'grid', gap: 6 }}>
+        <h2>API keys</h2>
+        <p>Use a key for the CLI, scripts, the Shortcut, the extension and AI agents. Each key’s name is recorded as Via on what it saves. Keys are managed in the <code>TROVE_API_KEYS</code> environment variable.</p>
+        <div className="key-list">
           {me?.apiKeys.map((k) => (
-            <div key={k.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 10 }}>
-              <Bot size={16} />
-              <strong style={{ minWidth: 120 }}>{k.name}</strong>
-              <code className="mono" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{reveal === k.name ? k.key : mask(k.key)}</code>
-              <button className="icon-btn" aria-label="Reveal" onClick={() => setReveal(reveal === k.name ? null : k.name)}>{reveal === k.name ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-              <button className="icon-btn" aria-label="Copy key" onClick={() => { navigator.clipboard.writeText(k.key); toast.push({ text: `${k.name} key copied` }); }}><Copy size={15} /></button>
+            <div key={k.name} className="key-row">
+              <strong><KeyRound size={14} style={{ display: 'inline', marginInlineEnd: 8, color: 'var(--text-3)', verticalAlign: '-2px' }} />{k.name}</strong>
+              <code className="mono">{reveal === k.name ? k.key : mask(k.key)}</code>
+              <button className="icon-btn sm" aria-label={reveal === k.name ? `Hide ${k.name} key` : `Show ${k.name} key`} onClick={() => setReveal(reveal === k.name ? null : k.name)}>{reveal === k.name ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+              <button className="icon-btn sm" aria-label={`Copy ${k.name} key`} onClick={() => { navigator.clipboard.writeText(k.key); toast.push({ text: `${k.name} key copied` }); }}><Copy size={15} /></button>
             </div>
           ))}
-          {!me && <div className="skeleton" style={{ height: 40 }} />}
+          {!me && <div className="skeleton" style={{ height: 44, borderRadius: 0 }} />}
         </div>
-        <div className="field-label" style={{ marginTop: 6 }}>MCP server</div>
-        <Code>{mcpUrl}</Code>
-        <div className="field-label">Claude Code</div>
-        <Code>{`claude mcp add --transport http --scope user trove ${mcpUrl} --header "Authorization: Bearer ${claudeKey}"`}</Code>
-        <div className="field-label">Hermes Agent (~/.hermes/config.yaml)</div>
-        <Code>{`mcp_servers:\n  trove:\n    url: ${mcpUrl}\n    headers:\n      Authorization: "Bearer ${hermesKey}"`}</Code>
-        <div className="field-label">Instinct & any other assistant</div>
-        <p style={{ fontSize: 13, marginTop: -6 }}>Add Trove as a remote MCP server (URL + header below). If the assistant only supports HTTP actions/tools, give it the OpenAPI spec <code>{base}/openapi.json</code> with the same bearer key. Then just send it a link or a message — “save this” — and it lands in Trove with Via: Instinct.</p>
-        <Code>{`MCP server: ${mcpUrl}\nHeader:     Authorization: Bearer ${instinctKey}\nOpenAPI:    ${base}/openapi.json`}</Code>
-        <div className="field-label">Claude Desktop, Cursor & other MCP clients</div>
-        <Code>{JSON.stringify({ mcpServers: { trove: { url: mcpUrl, headers: { Authorization: `Bearer ${key?.key || '<api key>'}` } } } }, null, 2)}</Code>
-        <div className="field-label">REST (any assistant, n8n, Zapier, scripts)</div>
-        <Code>{`curl -X POST ${base}/api/items \\\n  -H "Authorization: Bearer ${key?.key || '<api key>'}" \\\n  -H "content-type: application/json" \\\n  -d '{"url":"https://example.com","tags":["ai"],"note":"why it matters"}'`}</Code>
-        <p style={{ fontSize: 13 }}>
-          Docs for agents: <a href="/llms.txt" style={{ color: 'var(--accent)' }}>/llms.txt</a> · OpenAPI: <a href="/openapi.json" style={{ color: 'var(--accent)' }}>/openapi.json</a> · Skill: <a href="https://github.com/medpar/trove/tree/main/skills/trove" style={{ color: 'var(--accent)' }}>skills/trove/SKILL.md</a>
-        </p>
+      </section>
+
+      <section>
+        <h2>CLI and API for agents</h2>
+        <p>Any agent or script that can run a command or make an HTTP request can save to Trove and search it. Nothing agent-specific to configure: give it the CLI or the API and a key.</p>
+        <div>
+          <span className="field-label">CLI (Node 20 or later)</span>
+          <Code>{`npm install -g github:medpar/trove\ntrove login --url ${base} --key ${shownKey}\n\ntrove save https://example.com -t ai,reading -n "why it matters"\ntrove search "#ai type:article" --json\ntrove get <id> --content`}</Code>
+          <p className="field-hint">Every command takes <code>--json</code>. Run <code>trove --help</code> for the full list. Agents can also read the <a className="inline-link" href="https://github.com/medpar/trove/tree/main/skills/trove" target="_blank" rel="noreferrer">skill file</a>.</p>
+        </div>
+        <div>
+          <span className="field-label">REST</span>
+          <Code>{`curl -X POST ${base}/api/items \\\n  -H "Authorization: Bearer ${shownKey}" \\\n  -H "content-type: application/json" \\\n  -d '{"url":"https://example.com","tags":["ai"],"note":"why it matters"}'`}</Code>
+          <p className="field-hint">Reference: <a className="inline-link" href="/llms.txt">llms.txt</a> and <a className="inline-link" href="/openapi.json">openapi.json</a>.</p>
+        </div>
+        <div>
+          <span className="field-label">MCP (for clients that prefer it)</span>
+          <Code>{`URL     ${mcpUrl}\nHeader  Authorization: Bearer ${shownKey}`}</Code>
+        </div>
+      </section>
+
+      <section>
+        <h2>Agent</h2>
+        <p>The built-in agent searches, tags, sorts and tidies your library. It runs on your computer with your Claude Pro or Max, or ChatGPT subscription through Claude Code or Codex, so it needs no API keys. Open it from the Agent button in the library.</p>
+        <Code>{`claude auth login        # or: codex login\ntrove agent install      # starts the agent at login (macOS)\ntrove agent "tag everything untagged"   # or use it from the terminal`}</Code>
       </section>
 
       <section>
         <h2>Import</h2>
-        <p>Bring in browser bookmarks (HTML export from Brave/Chrome/Safari/Firefox), Raindrop or Pocket CSV, a Trove JSON export, or any text file with links. Folders become collections; duplicates are skipped automatically.</p>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
-          <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} style={{ accentColor: 'var(--accent)' }} /> Quick import (metadata only — much faster for big imports)
+        <p>Bring in browser bookmarks (HTML export from Brave, Chrome, Safari or Firefox), a Raindrop or Pocket CSV, a Trove JSON export, or any text file with links. Folders become collections and duplicates are skipped.</p>
+        <label className="check-row">
+          <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} />
+          <span>Quick import: metadata only, much faster for large files</span>
         </label>
-        <label className="btn" style={{ alignSelf: 'flex-start' }}>
-          <Upload size={15} /> Choose file…
-          <input type="file" accept=".html,.htm,.csv,.json,.txt" hidden onChange={(e) => e.target.files?.[0] && runImport(e.target.files[0])} />
-        </label>
+        <div>
+          <label className="btn">
+            <Upload size={15} /> Choose a file
+            <input type="file" accept=".html,.htm,.csv,.json,.txt" hidden onChange={(e) => e.target.files?.[0] && runImport(e.target.files[0])} />
+          </label>
+        </div>
         {imp && (
-          <div>
-            <div style={{ height: 6, borderRadius: 99, background: 'var(--hover)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${(imp.done / imp.total) * 100}%`, background: 'var(--accent)', transition: 'width .3s' }} />
-            </div>
-            <p className="mono muted" style={{ marginTop: 6 }}>
-              {imp.done}/{imp.total} processed · {imp.saved} new · {imp.errors} errors {imp.running ? '…' : '✓'}
+          <div role="status">
+            <div className="progress"><div style={{ width: `${(imp.done / imp.total) * 100}%` }} /></div>
+            <p className="field-hint num">
+              {imp.done.toLocaleString()} of {imp.total.toLocaleString()} processed · {imp.saved.toLocaleString()} new · {imp.errors.toLocaleString()} failed{imp.running ? '' : ' · Done'}
             </p>
           </div>
         )}
       </section>
 
       <section>
-        <h2>Export & backup</h2>
-        <p>Your data already lives in Notion. Export a copy any time:</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <h2>Export</h2>
+        <p>Your data already lives in Notion. Download a copy any time.</p>
+        <div className="row-actions-inline">
           {(['json', 'csv', 'html', 'txt'] as const).map((f) => (
             <a key={f} className="btn" href={`/api/export?format=${f}`}><Download size={15} /> {f.toUpperCase()}</a>
           ))}
@@ -264,32 +246,32 @@ export default function SettingsView() {
 
       <section>
         <h2>Library health</h2>
-        <p>A daily job checks saved links and flags broken ones (their archived copy stays readable in Trove and Notion).</p>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <p>A daily job checks saved links and flags broken ones. Their archived copies stay readable in Trove and Notion.</p>
+        <div className="row-actions-inline">
           <button
             className="btn"
             onClick={async () => {
               setHealth('Checking…');
               try {
                 const r = await api<{ checked: number; broken: number }>('/api/cron/links?limit=60');
-                setHealth(`Checked ${r.checked} links · ${r.broken} broken`);
+                setHealth(`Checked ${r.checked} links, ${r.broken} broken`);
                 refreshAll();
               } catch (e: any) {
-                setHealth(e.message);
+                setHealth(`Couldn’t check links: ${e.message}`);
               }
             }}
           >
             <Wrench size={15} /> Check links now
           </button>
-          <span className="muted">{health}</span>
+          <span className="muted" role="status">{health}</span>
         </div>
       </section>
 
       <section>
         <h2>Notion</h2>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {me?.notion.library && <a className="btn" href={me.notion.library} target="_blank" rel="noreferrer"><Globe size={15} /> Trove library database</a>}
-          {me?.notion.x && <a className="btn" href={me.notion.x} target="_blank" rel="noreferrer"><Globe size={15} /> X Bookmarks database</a>}
+        <div className="row-actions-inline">
+          {me?.notion.library && <a className="btn" href={me.notion.library} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Library database</a>}
+          {me?.notion.x && <a className="btn" href={me.notion.x} target="_blank" rel="noreferrer"><ExternalLink size={15} /> X bookmarks database</a>}
         </div>
       </section>
     </div>

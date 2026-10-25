@@ -532,7 +532,7 @@ async function createLibraryPage(url: string, key: string, e: Extracted, input: 
   if (e.media.length) props[L.media] = { files: e.media.slice(0, 10).map((m, i) => (mediaIds[i] ? { type: 'file_upload', file_upload: { id: mediaIds[i] }, name: `${m.type}-${i + 1}` } : { type: 'external', external: { url: m.url }, name: `${m.type}-${i + 1}` })) };
 
   // Highlights are always the last section, so new ones can simply be appended.
-  const parts: string[] = [`*Saved with Trove${input.via ? ` via ${input.via}` : ''} · [Open original](${url})*`];
+  const parts: string[] = [`Saved with Trove${input.via ? ` via ${input.via}` : ''} · [Open original](${url})`];
   if (input.note) parts.push('## Note', input.note);
   if (markdown) parts.push(markdown);
   if (input.highlight) parts.push('## Highlights', `> ${input.highlight.replace(/\n+/g, ' ')}`);

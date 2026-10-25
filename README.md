@@ -3,7 +3,7 @@
 <h1 align="center">Trove</h1>
 
 <p align="center"><b>Save anything, keep everything.</b><br>
-A personal, Raindrop-style library that archives what you save — articles, videos, social posts, repos, papers, notes, browser bookmarks and your X bookmarks — into Notion, so nothing is lost when the original disappears.</p>
+A personal, Raindrop-style library that archives what you save (articles, videos, social posts, repos, papers, notes, browser bookmarks and your X bookmarks) into Notion, so nothing is lost when the original disappears. With a CLI and API for agents, and a built-in librarian agent that runs on your own Claude or ChatGPT subscription.</p>
 
 <p align="center">
   <a href="https://trove.mariomedpar.com">App</a> ·
@@ -33,37 +33,46 @@ A personal, Raindrop-style library that archives what you save — articles, vid
 | **iPhone, iPad, Mac** | The signed **“Save to Trove” Shortcut** (Share sheet in every app + macOS Share menu / Services). It asks for your API key once. |
 | **Android, Windows, ChromeOS** | Install the app (PWA) → it appears in the system share sheet. |
 | **Any browser** | Bookmarklet (Settings → drag “＋ Save to Trove”); selected text becomes a highlight. |
-| **AI agents & automations** | MCP server, REST API, skill file — see below. |
+| **Terminal, scripts & AI agents** | `trove` CLI, REST API, MCP: see below. |
 
 ## AI agents
 
-Trove exposes the same library to every assistant. Each agent gets its own API key, recorded as **Via** on what it saves.
+Trove is built to be driven by agents: anything that can run a command or make an HTTP request can save to it and search it. No agent-specific setup; give it the CLI or the API and a key from Settings (the key's name is recorded as **Via**).
 
-- **MCP (recommended):** `https://trove.mariomedpar.com/api/mcp` (Streamable HTTP, `Authorization: Bearer <key>`). Tools: `save`, `save_many`, `search`, `get_item` (full archived Markdown), `update_item`, `add_highlight`, `check_saved`, `list_collections`, `list_tags`, `rename`, `delete_item`.
+- **CLI** (zero dependencies, Node 20+):
   ```bash
-  claude mcp add --transport http --scope user trove https://trove.mariomedpar.com/api/mcp --header "Authorization: Bearer $TROVE_API_KEY"
+  npm install -g github:medpar/trove
+  trove login --key <api key>              # or set TROVE_URL and TROVE_API_KEY
+  trove save https://example.com -t ai -n "why it matters"
+  trove search '#ai type:article' --json
+  trove get <id> --content                 # archived Markdown
+  trove update <id> --add-tags ai -c "Dev/AI"
   ```
-  ```yaml
-  # Hermes Agent: ~/.hermes/config.yaml
-  mcp_servers:
-    trove:
-      url: "https://trove.mariomedpar.com/api/mcp"
-      headers:
-        Authorization: "Bearer ${TROVE_API_KEY}"
-  ```
-- **Skill:** [`skills/trove/SKILL.md`](skills/trove/SKILL.md) teaches any skills-aware agent (Claude Code, Hermes, …) when and how to save.
-- **REST:** `POST /api/items {url | text, tags, collection, note, highlight}`, `GET /api/items?q=…`, `GET /api/items/:id?content=1`. Docs for agents: [`/llms.txt`](https://trove.mariomedpar.com/llms.txt), [`/openapi.json`](https://trove.mariomedpar.com/openapi.json).
+  Every command takes `--json`. The [skill file](skills/trove/SKILL.md) teaches any skills-aware agent when and how to use it.
+- **REST:** `POST /api/items {url | text, tags, collection, note, highlight}`, `GET /api/items?q=…`, `GET /api/items/:id?content=1`. Docs: [`/llms.txt`](https://trove.mariomedpar.com/llms.txt), [`/openapi.json`](https://trove.mariomedpar.com/openapi.json).
+- **MCP** (optional): `https://trove.mariomedpar.com/api/mcp` with `Authorization: Bearer <key>`.
 
-Message your assistant a link (e.g. Hermes on Telegram) and it lands in Trove. Assistants such as **Instinct** connect the same way: add the MCP server (or the OpenAPI spec for HTTP-only tools) with their own key from Settings — whatever they save is labelled “Via: Instinct”.
+### Built-in agent
+
+Trove has its own librarian agent that searches, tags, sorts into collections, merges duplicate tags and summarizes what you saved. It runs **on your computer with your Claude Pro/Max or ChatGPT subscription** through Claude Code or Codex (account login, no API keys) and acts only through the `trove` CLI.
+
+```bash
+claude auth login            # or: codex login
+trove agent "tag everything that has no tags"
+trove agent install          # macOS: keep the local bridge running so the web app's Agent panel can use it
+```
+
+In the web app, open **Agent** (top bar, or ⌘K → “Ask the agent”). The page talks to the local bridge on `127.0.0.1:7878`, which only accepts requests from your Trove origin.
 
 ## Architecture
 
 ```
-web/          Next.js 16 app on Vercel — UI, REST API, MCP server, cron (daily broken-link check)
+web/          Next.js 16 app on Vercel: UI, REST API, MCP server, cron (daily broken-link check)
   lib/extract.ts   URL -> metadata + archived Markdown (Readability, YouTube, FxTwitter, Reddit, Bluesky, Mastodon, HN, GitHub, arXiv, oEmbed)
   lib/store.ts     Notion data layer: both databases, search -> filters, merged pagination, saves, highlights, stats
   app/api/mcp      MCP tools for agents
-extension/    Brave/Chrome MV3 extension — save pages/links/images/highlights, browser bookmarks, X bookmarks sync (local, uses your x.com session)
+extension/    Brave/Chrome MV3 extension: save pages/links/images/highlights, browser bookmarks, X bookmarks sync (local, uses your x.com session)
+cli/          `trove` CLI and the local agent (Claude Code / Codex engines, bridge for the web app)
 skills/trove/ Agent skill
 scripts/      Notion setup, Apple Shortcut builder, icons, live checks
 ```

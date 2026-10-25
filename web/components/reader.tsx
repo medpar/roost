@@ -51,16 +51,26 @@ function purify(html: string) {
   return DOMPurify.sanitize(html, { ADD_TAGS: ['iframe', 'video'], ADD_ATTR: ['allowfullscreen', 'target', 'controls', 'preload', 'loading'] });
 }
 
-export function Reader({ markdown, highlights = [] }: { markdown: string; highlights?: string[] }) {
+/** Drop the "## Note" block when it repeats the item's note (shown as a property above). */
+function stripNote(md: string, note?: string) {
+  const m = /^#{1,3}\s+Note[ \t]*\n+/m.exec(md);
+  const n = (note || '').trim();
+  if (!m || !n) return md;
+  const rest = md.slice(m.index + m[0].length);
+  return rest.startsWith(n) ? md.slice(0, m.index) + rest.slice(n.length).replace(/^\s*\n/, '') : md;
+}
+
+export function Reader({ markdown, highlights = [], note }: { markdown: string; highlights?: string[]; note?: string }) {
   const html = useMemo(() => {
-    const body = markdown.replace(/^\*Saved with Trove[^\n]*\n*/, '');
+    // The footer, the note and the highlights are shown elsewhere in the panel.
+    const body = stripNote(markdown.replace(/^\**Saved with Trove[^\n]*\n*/, '').replace(/^#{1,3}\s+Highlights\s*$[\s\S]*/m, ''), note);
     let out = purify(marked.parse(notionToHtmlish(body), { async: false, gfm: true, breaks: false }) as string);
     for (const h of highlights) {
       const needle = h.trim().slice(0, 140);
       if (needle.length > 12) out = out.replace(needle.replace(/&/g, '&amp;'), `<mark>${needle}</mark>`);
     }
     return out;
-  }, [markdown, highlights]);
+  }, [markdown, highlights, note]);
   return <article className="reader" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

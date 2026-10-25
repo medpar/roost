@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AtSign, BookOpen, Code2, FileText, Film, Headphones, Image as ImageIcon, Link2, MessageSquare, Newspaper, NotebookPen, Package, ScrollText,
+  AtSign, BookOpen, Check, Copy, Code2, FileText, Film, Headphones, Image as ImageIcon, Link2, MessageSquare, Newspaper, NotebookPen, Package, ScrollText,
 } from 'lucide-react';
 import { favicon } from './api';
 
@@ -108,21 +108,21 @@ export function Menu({ anchor, items, onClose, align = 'left' }: { anchor: DOMRe
     <div className="menu" ref={ref} style={pos} role="menu">
       {items.map((it, i) =>
         it === 'sep' ? (
-          <div key={i} style={{ height: 1, background: 'var(--line)', margin: '4px 6px' }} />
+          <div key={i} className="menu-sep" role="separator" />
         ) : (
           <button
             key={i}
-            role="menuitem"
-            className={it.on ? 'on' : ''}
-            style={it.danger ? { color: 'var(--danger)' } : undefined}
+            role={it.on !== undefined ? 'menuitemradio' : 'menuitem'}
+            aria-checked={it.on !== undefined ? it.on : undefined}
+            className={it.danger ? 'danger' : ''}
             onClick={() => {
               it.run();
               onClose();
             }}
           >
             {it.icon}
-            <span style={{ flex: 1 }}>{it.label}</span>
-            {it.on && <span style={{ color: 'var(--accent)' }}>●</span>}
+            <span className="label">{it.label}</span>
+            {it.on && <Check size={15} className="menu-check" />}
           </button>
         ),
       )}
@@ -140,15 +140,23 @@ export function useMenu() {
 
 // ---------- dialog ----------
 
-export function Dialog({ onClose, children, className = '', label }: { onClose: () => void; children: ReactNode; className?: string; label: string }) {
+export function Dialog({ onClose, children, className = '', label, instant }: { onClose: () => void; children: ReactNode; className?: string; label: string; instant?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Move focus inside on open and give it back to the trigger on close.
+    const prev = document.activeElement as HTMLElement | null;
+    const el = ref.current;
+    if (el && !el.contains(document.activeElement)) (el.querySelector<HTMLElement>('[autofocus], input, textarea, button') || el).focus();
+    return () => prev?.focus?.();
+  }, []);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, [onClose]);
   return createPortal(
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`dialog ${className}`} role="dialog" aria-modal="true" aria-label={label}>
+    <div className={`overlay ${instant ? 'instant' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={ref} tabIndex={-1} className={`dialog ${className}`} role="dialog" aria-modal="true" aria-label={label}>
         {children}
       </div>
     </div>,
@@ -160,7 +168,7 @@ export function Dialog({ onClose, children, className = '', label }: { onClose: 
 
 export function Favicon({ domain, size = 16, className = '' }: { domain: string; size?: number; className?: string }) {
   const [err, setErr] = useState(false);
-  if (err || !domain) return <span className={className} style={{ width: size, height: size, borderRadius: 4, background: 'var(--line)', display: 'inline-block', flex: 'none' }} />;
+  if (err || !domain) return <span className={className} style={{ width: size, height: size, borderRadius: 4, background: 'var(--bg-active)', display: 'inline-block', flex: 'none' }} />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img className={className} src={favicon(domain, size > 20 ? 128 : 64)} width={size} height={size} alt="" loading="lazy" onError={() => setErr(true)} />;
 }
@@ -172,7 +180,7 @@ const TYPE_ICON: Record<string, typeof Link2> = {
 
 export function TypeIcon({ type, size = 14 }: { type: string; size?: number }) {
   const I = TYPE_ICON[type] || Link2;
-  return <I size={size} strokeWidth={1.8} aria-label={type} />;
+  return <I size={size} aria-hidden="true" />;
 }
 
 export const TYPE_ORDER = ['Article', 'Video', 'Post', 'Link', 'Image', 'Document', 'Audio', 'Repo', 'Paper', 'Product', 'Note'];
@@ -197,4 +205,26 @@ export function useHotkey(handler: (e: KeyboardEvent) => void, deps: unknown[]) 
     return () => window.removeEventListener('keydown', h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+}
+
+// ---------- copyable code ----------
+
+export function CodeBox({ children }: { children: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <div className="codebox">
+      {children}
+      <button
+        className="icon-btn"
+        aria-label={ok ? 'Copied' : 'Copy'}
+        onClick={() => {
+          navigator.clipboard.writeText(children);
+          setOk(true);
+          setTimeout(() => setOk(false), 1400);
+        }}
+      >
+        {ok ? <Check size={15} /> : <Copy size={15} />}
+      </button>
+    </div>
+  );
 }

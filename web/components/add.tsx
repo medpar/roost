@@ -67,7 +67,7 @@ export function AddDialog({ initial = '', defaults, stats, onClose, onOpen }: { 
     <Dialog onClose={onClose} label="Add to Trove">
       <div className="dialog-head">
         <h3>Add to Trove</h3>
-        <p className="muted" style={{ marginTop: 4 }}>Paste links (one per line) or write a note. Tip: paste a link anywhere in Trove to save it instantly.</p>
+        <p>Paste one or more links, or write a note.</p>
       </div>
       <div className="dialog-body">
         {!rows ? (
@@ -75,40 +75,47 @@ export function AddDialog({ initial = '', defaults, stats, onClose, onOpen }: { 
             <textarea
               ref={ta}
               className="textarea"
-              style={{ minHeight: 110, fontSize: 15 }}
+              style={{ minHeight: 104, fontSize: 'var(--fs-md)' }}
               placeholder="https://… or a thought worth keeping"
+              aria-label="Links or note"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter' && submit()}
             />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="grid-2">
               <div>
-                <div className="field-label">Collection</div>
+                <label className="field-label">Collection</label>
                 <CollectionInput value={collection} onChange={setCollection} known={stats?.collections} />
               </div>
               <div>
-                <div className="field-label">Note</div>
-                <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+                <label className="field-label" htmlFor="add-note">Note</label>
+                <input id="add-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
               </div>
             </div>
             <div>
-              <div className="field-label">Tags</div>
+              <label className="field-label">Tags</label>
               <TagInput value={tags} onChange={setTags} known={stats?.tags} />
             </div>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--ink-2)' }}>
-              <input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
-              Archive full content (article text, transcript, images) — uncheck for faster bulk adds
+            <label className="check-row">
+              <input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} />
+              <span>Archive the full content (article text, transcript, images). Turn off for faster bulk adds.</span>
             </label>
           </>
         ) : (
-          <div style={{ display: 'grid', gap: 6, maxHeight: '46vh', overflow: 'auto' }}>
+          <div className="save-rows" role="status">
             {rows.map((r) => (
-              <div key={r.key} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 9, background: 'var(--paper-2)' }}>
-                {r.state === 'saving' || r.state === 'wait' ? <span className="spinner" style={{ color: 'var(--muted)', opacity: r.state === 'wait' ? 0.4 : 1 }} /> : r.state === 'error' ? <CircleAlert size={15} color="var(--danger)" /> : <Check size={15} color="var(--ok)" />}
+              <div key={r.key} className="save-row">
+                {r.state === 'saving' || r.state === 'wait' ? (
+                  <span className="spinner" style={{ color: 'var(--text-3)', opacity: r.state === 'wait' ? 0.4 : 1 }} />
+                ) : r.state === 'error' ? (
+                  <CircleAlert size={15} className="err-icon" />
+                ) : (
+                  <Check size={15} className="ok-icon" />
+                )}
                 {r.item ? <Favicon domain={r.item.domain} size={16} /> : <Link2 size={14} />}
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  {r.state === 'saved' ? 'Saved' : r.state === 'exists' ? 'Already saved' : r.state === 'error' ? r.error : r.state === 'saving' ? 'Archiving…' : ''}
+                <span className="label">{r.label}</span>
+                <span className={`state ${r.state === 'error' ? 'error' : ''}`}>
+                  {r.state === 'saved' ? 'Saved' : r.state === 'exists' ? 'Already saved' : r.state === 'error' ? r.error : r.state === 'saving' ? 'Archiving…' : 'Waiting'}
                 </span>
               </div>
             ))}
@@ -116,11 +123,7 @@ export function AddDialog({ initial = '', defaults, stats, onClose, onOpen }: { 
         )}
       </div>
       <div className="dialog-foot">
-        {!rows && (
-          <span className="muted" style={{ marginRight: 'auto', fontSize: 12.5 }}>
-            {urls.length > 1 ? `${urls.length} links` : urls.length === 1 ? '1 link' : isNote ? 'Saved as a note' : ''}
-          </span>
-        )}
+        {!rows && <span className="hint">{urls.length > 1 ? `${urls.length} links` : urls.length === 1 ? '1 link' : isNote ? 'Saves as a note' : ''}</span>}
         {savedOne && (
           <button className="btn" onClick={() => { onOpen(rows![0].item!); onClose(); }}>
             Open item
@@ -131,7 +134,7 @@ export function AddDialog({ initial = '', defaults, stats, onClose, onOpen }: { 
         </button>
         {!rows && (
           <button className="btn primary" onClick={submit} disabled={!text.trim()}>
-            Save <span className="kbd" style={{ background: 'transparent', color: 'inherit', borderColor: 'rgba(255,255,255,.4)' }}>⌘<CornerDownLeft size={10} style={{ display: 'inline' }} /></span>
+            Save <span className="kbd">⌘<CornerDownLeft size={10} /></span>
           </button>
         )}
       </div>
