@@ -4,7 +4,7 @@
 
 import * as X from './x.js';
 import { Notion, NotionError } from './notion.js';
-import { P, X_TYPE, ensureSchema, xKey } from './schema.js';
+import { P, X_COLLECTION, X_TYPE, ensureSchema, xKey } from './schema.js';
 import { autoTags, buildBlocks, buildProperties, fullText, linkify, para, parseRules, rt, threadAppendBlocks, titleFor } from './render.js';
 import { bookmarkedAtFromSortIndex, looksLikeThread, postTypes } from './parse.js';
 import { chunk, tweetIdFromUrl } from './util.js';
@@ -167,6 +167,7 @@ function minimalProps(t) {
     [P.kind]: { select: { name: X_TYPE } },
     [P.platform]: { select: { name: 'X' } },
     [P.key]: { rich_text: rt(xKey(t.id)) },
+    [P.collection]: { select: { name: X_COLLECTION } },
     [P.url]: { url: t.url },
     [P.id]: { rich_text: rt(t.id) },
     [P.text]: { rich_text: rt(t.text || '').slice(0, 100) },

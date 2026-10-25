@@ -18,7 +18,7 @@ A personal, Raindrop-style library that archives what you save (articles, videos
 ## What it does
 
 - **Archives the content, not just the link.** Articles are stored as clean text (Readability), YouTube videos with description and transcript, X/Reddit/Bluesky/Mastodon/Hacker News posts with their text and media, GitHub repos with their README, arXiv papers with abstract and the PDF, any PDF or image file. Covers and media are copied into Notion's file storage.
-- **One Notion database for everything.** `Trove` holds everything you save. Your X bookmarks live in it as their own type, **X bookmark**, filled automatically by the extension (full threads, reply context, media, likes and views).
+- **One Notion database for everything.** `Trove` holds everything you save. Your X bookmarks live in it as their own type, **X bookmark**, in the **X bookmarks** collection, filled automatically by the extension (full threads, reply context, media, likes and views). Browser bookmarks go to **Browser bookmarks** and Pinterest saves to **Pinterest**, each with their folders or boards inside.
 - **Never a duplicate.** URLs are normalized (tracking params, `www`, mobile hosts, `youtu.be`, `?s=20`, arXiv versions…). Saving again merges tags, notes and highlights instead.
 - **Organize like Raindrop.** Nested collections (`Dev/AI`), tags, favorites, read-later, notes, highlights, reminders, broken-link detection, bulk edit, four views (cards, list, headlines, moodboard), keyboard-first UI, light & dark themes.
 - **Search with operators:** `"phrase"`, `-word`, `#tag`, `-#tag`, `type:video`, `site:github.com`, `collection:"Dev/AI"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `source:x`, `match:OR`.
@@ -30,6 +30,7 @@ A personal, Raindrop-style library that archives what you save (articles, videos
 |---|---|
 | **Web app** (any OS) | Paste a link anywhere (⌘V), drop it on the window, or press <kbd>N</kbd>. Add many links at once, or a plain note. |
 | **Brave / Chrome / Edge / Arc** (macOS, Windows, Linux) | The extension: toolbar button, <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>, right-click page / link / image / **selection → highlight**. It reads the page you're on, so logged-in and paywalled pages are archived too. Imports all browser bookmarks (folders → collections) and can auto-save new ones. Keeps syncing your **X bookmarks** with threads and media. |
+| **Pinterest** | The extension imports every pin on your boards (secret ones and quick saves too) with its image archived, one sub-collection per board, and keeps them in sync every few hours. Uses your Pinterest login in the browser; no API keys. |
 | **iPhone, iPad, Mac** | The signed **“Save to Trove” Shortcut** (Share sheet in every app + macOS Share menu / Services). It asks for your API key once. |
 | **Android, Windows, ChromeOS** | Install the app (PWA) → it appears in the system share sheet. |
 | **Any browser** | Bookmarklet (Settings → drag “＋ Save to Trove”); selected text becomes a highlight. |

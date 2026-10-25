@@ -23,6 +23,15 @@ async function load() {
   if (document.activeElement !== $('troveUrl')) $('troveUrl').value = s.troveUrl || '';
   $('troveKey').placeholder = s.troveKey ? 'Connected — paste to replace' : 'trv_… (Trove → Settings → API keys)';
   $('syncBrowserBookmarks').checked = !!s.syncBrowserBookmarks;
+  $('syncPinterest').checked = !!s.syncPinterest;
+  const pin = state.pinterest;
+  if (pin) {
+    $('pinMsg').textContent = pin.running
+      ? `Importing ${pin.todo ? `${fmt(pin.done || 0)}/${fmt(pin.todo)} new pins` : 'your boards'}…`
+      : pin.error
+        ? pin.error
+        : `${fmt(pin.total)} pins${pin.username ? ` from @${pin.username}` : ''} · ${fmt(pin.saved)} new${pin.moved ? ` · ${pin.moved} moved` : ''}${pin.errors ? ` · ${pin.errors} failed` : ''}${pin.at ? ` · ${new Date(pin.at).toLocaleString()}` : ''}`;
+  }
   const bi = state.bookmarksImport;
   if (bi) $('bmMsg').textContent = `${bi.running ? 'Importing' : 'Imported'} ${fmt(bi.done)}/${fmt(bi.total)} · ${fmt(bi.saved)} new${bi.errors ? ` · ${bi.errors} errors` : ''}`;
   $('interval').value = String(s.intervalMin);
@@ -149,6 +158,13 @@ $('saveTrove').onclick = async () => {
   }
 };
 $('syncBrowserBookmarks').onchange = () => saveSettings({ syncBrowserBookmarks: $('syncBrowserBookmarks').checked });
+$('syncPinterest').onchange = () => saveSettings({ syncPinterest: $('syncPinterest').checked });
+$('syncPinterestNow').onclick = async () => {
+  $('syncPinterestNow').disabled = true;
+  await send('syncPinterest');
+  $('pinMsg').textContent = 'Reading your boards…';
+  setTimeout(() => ($('syncPinterestNow').disabled = false), 5000);
+};
 $('importBookmarks').onclick = async () => {
   $('importBookmarks').disabled = true;
   await send('importBookmarks');

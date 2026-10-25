@@ -308,13 +308,16 @@ export type SaveInput = {
   favorite?: boolean;
   read?: boolean;
   remind?: string | null;
-  meta?: Partial<{ title: string; description: string; image: string; author: string; published: string; siteName: string; html: string; text: string; lang: string }>;
+  meta?: Partial<{ title: string; description: string; image: string; author: string; published: string; siteName: string; html: string; text: string; lang: string; pin: PinMeta }>;
   source?: string;
   via?: string;
   archive?: boolean;
 };
 
 export type SaveResult = { item: Item; created: boolean };
+
+/** A Pinterest pin as read by the browser extension from the user's own session. */
+export type PinMeta = { id: string; link?: string | null; domain?: string | null; board?: string | null; video?: string | null; color?: string | null };
 
 const rt = (s: string | undefined | null, max = 1900) => {
   const out: any[] = [];
@@ -358,11 +361,41 @@ export async function save(input: SaveInput): Promise<SaveResult> {
   const existing = await findLibraryByKey(key);
   if (existing) return { item: await mergeInto(existing, { ...input, note }), created: false };
 
-  let e: Extracted = input.archive === false ? await extractLite(url) : await withTimeout(extract(url), 25000, () => extractLite(url));
-  if (input.meta) e = mergeClientMeta(e, input.meta);
+  let e: Extracted = input.meta?.pin
+    ? pinExtracted(url, input.meta)
+    : input.archive === false
+      ? await extractLite(url)
+      : await withTimeout(extract(url), 25000, () => extractLite(url));
+  if (input.meta && !input.meta.pin) e = mergeClientMeta(e, input.meta);
   if (input.title) e.title = input.title;
   if (input.type) e.type = input.type as Extracted['type'];
   return createLibraryPage(url, key, e, { ...input, note });
+}
+
+/** Pins come fully described by the extension; Pinterest pages need a login, so nothing is fetched here. */
+function pinExtracted(url: string, m: NonNullable<SaveInput['meta']>): Extracted {
+  const pin = m.pin!;
+  const link = pin.link && isUrl(pin.link) ? pin.link : null;
+  const description = (m.description || '').trim();
+  return {
+    url,
+    title: m.title || 'Pin',
+    description,
+    siteName: 'Pinterest',
+    author: m.author || '',
+    published: m.published ? new Date(m.published).toISOString() : null,
+    image: m.image || null,
+    type: pin.video ? 'Video' : 'Image',
+    platform: 'Pinterest',
+    lang: '',
+    markdown: [description, link ? `Source: [${pin.domain || domainOf(link)}](${link})` : '', pin.board ? `Board: ${pin.board}` : ''].filter(Boolean).join('\n\n'),
+    text: [description, link].filter(Boolean).join('\n'),
+    words: (description.match(/\S+/g) || []).length,
+    duration: null,
+    media: pin.video ? [{ type: 'video', url: pin.video }] : [],
+    embed: null,
+    extra: { link },
+  };
 }
 
 async function extractLite(url: string): Promise<Extracted> {
@@ -435,6 +468,7 @@ async function createLibraryPage(url: string, key: string, e: Extracted, input: 
   };
   if (e.published) props[L.published] = { date: { start: e.published } };
   if (e.lang) props[L.lang] = { select: { name: e.lang } };
+  if (typeof e.extra.link === 'string') props[L.link] = { url: e.extra.link };
 
   // Archive the cover and post media inside Notion so they outlive the original.
   const archive = input.archive !== false;
@@ -538,8 +572,8 @@ async function saveTweet(id: string, input: SaveInput): Promise<SaveResult> {
   const ids = await Promise.all(media.slice(0, 8).map((m: any, i: number) => importFile(m.url, `${t.id}-${i}.${m.type === 'photo' ? extOf(m.url, 'jpg') : 'mp4'}`, m.type === 'photo' ? 25000 : 120000)));
   const uploads = new Map<string, string>();
   media.slice(0, 8).forEach((m: any, i: number) => ids[i] && uploads.set(m.url, ids[i]!));
-  const props: Record<string, any> = buildProperties(t, { source: input.source || (input.via ? 'Agent' : 'Web app'), tags: input.tags || [] });
-  if (input.collection) props[L.collection] = { select: { name: selName(input.collection) } };
+  // X posts go to the "X bookmarks" collection unless the caller files them somewhere else.
+  const props: Record<string, any> = buildProperties(t, { source: input.source || (input.via ? 'Agent' : 'Web app'), tags: input.tags || [], ...(input.collection ? { collection: selName(input.collection) } : {}) });
   if (input.note) props[L.note] = { rich_text: rt(input.note) };
   if (input.favorite) props[L.favorite] = { checkbox: true };
   if (input.read) props[L.read] = { checkbox: true };

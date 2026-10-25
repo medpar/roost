@@ -2,7 +2,7 @@
 // Pure module (no chrome.*). Respects Notion limits: 2000 chars per text
 // object, 100 items per rich_text array, 2 nesting levels per request.
 
-import { P, X_TYPE, xKey } from './schema.js';
+import { P, X_COLLECTION, X_TYPE, xKey } from './schema.js';
 import { postTypes } from './parse.js';
 import { compactNumber, fmtDate, hostOf, truncate, tweetUrl } from './util.js';
 
@@ -265,7 +265,7 @@ export function fullText(t, chain = []) {
 }
 
 export function buildProperties(t, ctx = {}) {
-  const { chain = [], source = 'Bookmark', bookmarkedAt = null, tags = [], unroll = false } = ctx;
+  const { chain = [], source = 'Bookmark', bookmarkedAt = null, tags = [], unroll = false, collection = X_COLLECTION } = ctx;
   const threadLen = chain.length > 1 ? chain.length : ctx.threadLen || null;
   const a = t.author || {};
   const s = t.stats || {};
@@ -310,6 +310,7 @@ export function buildProperties(t, ctx = {}) {
     [P.replyTo]: { url: t.replyTo ? tweetUrl(t.replyTo.handle, t.replyTo.id) : null },
     [P.source]: { select: { name: source } },
     [P.unroll]: { checkbox: !!unroll },
+    [P.collection]: { select: { name: collection } },
   };
   if (t.createdAt) props[P.posted] = { date: { start: t.createdAt } };
   if (bookmarkedAt) props[P.bookmarked] = { date: { start: bookmarkedAt } };

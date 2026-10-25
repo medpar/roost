@@ -11,7 +11,7 @@
     "cli/"
   ],
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test test/*.test.mjs",
     "icons": "node scripts/make-icons.mjs",
     "setup": "node scripts/setup-notion.mjs",
     "package": "node scripts/package.mjs"

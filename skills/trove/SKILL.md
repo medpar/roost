@@ -40,9 +40,10 @@ Full reference: `$TROVE_URL/llms.txt` and `$TROVE_URL/openapi.json`. An MCP serv
 1. **Bare link or "save this": save it right away.** Don't ask for confirmation.
 2. **File everything you save, without asking.** Trove detects the content type (article, video, X bookmark, repo…) by itself; you choose where it goes:
    - Run `trove collections --json` and `trove tags --json` once per conversation and reuse what exists.
-   - Pick the best collection (nested with `/`, e.g. `Dev/AI`). Create a new one only when nothing fits, and nest it under an existing parent when one makes sense. Never use `Browser bookmarks`: it is reserved for bookmarks synced from the browser.
+   - Pick the best collection (nested with `/`, e.g. `Dev/AI`). Create a new one only when nothing fits, and nest it under an existing parent when one makes sense. Never file anything into `Browser bookmarks`, `X bookmarks` or `Pinterest`: Trove fills those by itself from the browser, X and Pinterest.
    - Add 1–4 short lowercase tags, reusing existing ones.
    - Add a one-line note with why it matters when the user gave any context.
+   - **Write everything in English**: collection names, tags, notes and any title you set, even when the content or the user's message is in another language (translate it). Leave the original title of a saved page as it is unless the user asks you to rename it.
    - Pass them all in the same save: `trove save <url> -c "Dev/AI" -t llm,agents -n "…"`. If you only learn what it is after saving (from the archived content), fix it with `trove update <id> -c … --add-tags …`.
 3. **Collections** are one per item. A parent collection includes its sub-collections when you search with `-c` or `collection:"Name"`.
 4. **Search syntax:** words, `"exact phrase"`, `-exclude`, `#tag`, `-#tag`, `type:article|video|post|x|repo|note|paper|image|document` (`type:x` = X bookmarks), `site:github.com`, `collection:"Name"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `match:OR`.

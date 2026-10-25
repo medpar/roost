@@ -13,7 +13,7 @@ Use it whenever the user shares a link or content and wants it kept ("save this"
 - save: store a URL (articles, YouTube, X/Reddit/Bluesky/Mastodon posts, GitHub repos, PDFs...) or plain text as a note. Trove fetches title, description, cover, the full article text / transcript, and never creates duplicates (saving again merges tags/notes).
 - search: find saved items. Query syntax: words, "exact phrase", -exclude, #tag, type:video|article|post|x|repo|note (type:x = X bookmarks), site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, highlights:true.
 - get_item returns the archived full content (Markdown) for summarizing or answering questions.
-File everything you save without asking: call list_collections and list_tags once, then pass the best existing collection (nested with "/", create one only when nothing fits; never "Browser bookmarks", which holds browser-synced bookmarks), 1-4 short lowercase tags and, when the user gave context, a one-line note. Trove detects the content type itself. Report only what tool results confirm.`;
+File everything you save without asking: call list_collections and list_tags once, then pass the best existing collection (nested with "/", create one only when nothing fits; never "Browser bookmarks", "X bookmarks" or "Pinterest", which Trove fills itself), 1-4 short lowercase tags and, when the user gave context, a one-line note. Write collection names, tags, notes and any title you set in English, even if the content or request is in another language. Trove detects the content type itself. Report only what tool results confirm.`;
 
 const brief = (i: Item) => ({
   id: i.id,

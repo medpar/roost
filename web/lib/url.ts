@@ -42,6 +42,10 @@ export function urlKey(raw: string): string {
       if (id) return `x.com/status/${id}`;
     }
     if (host === 'youtu.be') return `youtube.com/watch?v=${path.slice(1)}`;
+    if (/(^|\.)pinterest\.[a-z.]+$/.test(host)) {
+      const pin = /\/pin\/(\d+)/.exec(path)?.[1];
+      if (pin) return `pinterest.com/pin/${pin}`;
+    }
     if (host === 'arxiv.org') {
       const id = /\/(?:abs|pdf|html)\/([\w.\/-]+?)(?:v\d+)?(?:\.pdf)?$/.exec(path)?.[1];
       if (id) return `arxiv.org/abs/${id}`;

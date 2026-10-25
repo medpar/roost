@@ -19,6 +19,7 @@ export const DEFAULTS = {
   troveUrl: 'https://trove.mariomedpar.com',
   troveKey: '',
   syncBrowserBookmarks: false,
+  syncPinterest: false,
 };
 
 const local = () => chrome.storage.local;

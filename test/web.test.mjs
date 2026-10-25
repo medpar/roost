@@ -92,3 +92,24 @@ test('FxTwitter posts render into valid Notion X pages', () => {
   validateProperties(props, schemaProperties());
   validateBlocks(buildBlocks(t, { raw: true }));
 });
+
+test('Pinterest pins: one key per pin on any country host, board as sub-collection', async () => {
+  const { pinToItem, boardCollection } = await import('../extension/lib/pinterest.js');
+  assert.equal(urlKey('https://es.pinterest.com/pin/708613322662554524/'), 'pinterest.com/pin/708613322662554524');
+  assert.equal(urlKey('https://www.pinterest.com/pin/708613322662554524/?mt=login'), 'pinterest.com/pin/708613322662554524');
+  assert.equal(platformOf('https://www.pinterest.com/pin/1/'), 'Pinterest');
+  const board = { id: '1', name: 'Watches', url: '/u/watches/' };
+  const pin = { id: '42', type: 'pin', title: '', grid_title: 'Reloj minimalista', description: 'A watch', link: 'https://shop.example/watch', domain: 'shop.example', images: { orig: { url: 'https://i.pinimg.com/originals/a/b.jpg' } }, created_at: 'Tue, 01 Jul 2025 10:00:00 +0000' };
+  const item = pinToItem(pin, board);
+  assert.equal(item.url, 'https://www.pinterest.com/pin/42/');
+  assert.equal(item.collection, 'Pinterest/Watches');
+  assert.equal(item.type, 'Image');
+  assert.equal(item.title, 'Reloj minimalista');
+  assert.equal(item.meta.image, 'https://i.pinimg.com/originals/a/b.jpg');
+  assert.equal(item.meta.pin.link, 'https://shop.example/watch');
+  assert.equal(boardCollection({ name: 'Guardado rápido', url: '/u/_quick_saves/' }), 'Pinterest/Quick saves');
+  assert.equal(boardCollection({ name: 'Cars/Bikes', url: '/u/cars/' }), 'Pinterest/Cars-Bikes');
+  const video = pinToItem({ ...pin, videos: { video_list: { V_HLSV3: { url: 'https://v.pinimg.com/a.m3u8' }, V_720P: { url: 'https://v.pinimg.com/a.mp4' } } } }, board);
+  assert.equal(video.type, 'Video');
+  assert.equal(video.meta.pin.video, 'https://v.pinimg.com/a.mp4');
+});

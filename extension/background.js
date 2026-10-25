@@ -7,9 +7,10 @@ import * as X from './lib/x.js';
 import * as Sync from './lib/sync.js';
 import * as S from './lib/store.js';
 import { Notion, parseNotionId } from './lib/notion.js';
-import { createDatabase, createViews, ensureSchema, resolveDataSource } from './lib/schema.js';
+import { BROWSER_COLLECTION, createDatabase, createViews, ensureSchema, resolveDataSource } from './lib/schema.js';
 import { tweetIdFromUrl } from './lib/util.js';
 import * as Trove from './lib/trove.js';
+import * as Pinterest from './lib/pinterest.js';
 import { videoIdOf, youtubeData } from './lib/youtube.js';
 
 // ---------- listeners (registered synchronously at startup) ----------
@@ -43,6 +44,8 @@ chrome.alarms.onAlarm.addListener(async ({ name }) => {
   if (name === 'sync') {
     Sync.syncNew('scheduled').catch(notifyError);
     enrichVideos().catch(() => {});
+    const [{ syncPinterest: on }, { pinterest }] = await Promise.all([S.getSettings(), S.getState()]);
+    if (on && !pinterest?.running && Date.now() - (pinterest?.at || 0) > PINTEREST_EVERY) syncPinterest().catch(() => {});
   }
   if (name === 'tick') resumeIfNeeded();
 });
@@ -139,7 +142,7 @@ function createMenus() {
 // ---------- saving to the Trove web app ----------
 
 // Browser bookmarks all live under one collection; their folders become sub-collections.
-const BOOKMARKS_ROOT = 'Browser bookmarks';
+const BOOKMARKS_ROOT = BROWSER_COLLECTION;
 const bookmarksCollection = (path) => (path ? `${BOOKMARKS_ROOT}/${path}` : BOOKMARKS_ROOT);
 
 const SKIP_FOLDERS = /^(bookmarks bar|bookmarks toolbar|barra de marcadores|favorites bar|other bookmarks|otros marcadores|mobile bookmarks|marcadores del móvil|bookmarks menu)$/i;
@@ -249,6 +252,75 @@ async function importBrowserBookmarks() {
   const { bookmarksImport } = await S.getState();
   notify('', 'Browser bookmarks imported', `${bookmarksImport.saved} new · ${bookmarksImport.total - bookmarksImport.saved - bookmarksImport.errors} already saved`);
   return bookmarksImport;
+}
+
+// ---------- Pinterest ----------
+
+const PINTEREST_EVERY = 3 * 60 * 60 * 1000;
+
+/**
+ * Save every pin on your boards to Trove (each board is a sub-collection of "Pinterest"), and move
+ * pins you moved to another board. Pins you delete on Pinterest stay archived in Trove.
+ */
+async function syncPinterest({ manual = false } = {}) {
+  const { pinterest: prev } = await S.getState();
+  if (prev?.running && Date.now() - (prev.startedAt || 0) < 30 * 60 * 1000) return prev;
+  const set = (patch) => S.updateState((s) => ({ ...s, pinterest: { ...s.pinterest, ...patch } }));
+  await set({ running: true, startedAt: Date.now(), error: null, total: 0, saved: 0, moved: 0, errors: 0 });
+  const keep = setInterval(() => chrome.runtime.getPlatformInfo(), 20000);
+  try {
+    const username = await Pinterest.me();
+    if (!username) throw new Error('Log in to pinterest.com in this browser so Trove can read your saves.');
+    const { pinIndex = {} } = await chrome.storage.local.get('pinIndex');
+    const toSave = [];
+    const toMove = [];
+    let total = 0;
+    for (const board of await Pinterest.boards(username)) {
+      for await (const pin of Pinterest.pins(board)) {
+        total++;
+        const item = Pinterest.pinToItem(pin, board);
+        const known = pinIndex[pin.id];
+        if (!known) toSave.push([pin.id, item]);
+        else if (known.c !== item.collection) toMove.push([pin.id, known.id, item.collection]);
+      }
+    }
+    await set({ total, username });
+    let saved = 0;
+    let errors = 0;
+    for (let i = 0; i < toSave.length; i += 8) {
+      const batch = toSave.slice(i, i + 8);
+      try {
+        const r = await Trove.saveMany(batch.map(([, item]) => item));
+        r.results.forEach((res, k) => {
+          if (res?.item) pinIndex[batch[k][0]] = { id: res.item.id, c: res.item.collection };
+          if (res?.created) saved++;
+          if (res?.error) errors++;
+        });
+      } catch {
+        errors += batch.length;
+      }
+      await chrome.storage.local.set({ pinIndex });
+      await set({ saved, errors, done: Math.min(toSave.length, i + batch.length), todo: toSave.length });
+    }
+    let moved = 0;
+    for (const [pinId, itemId, collection] of toMove) {
+      try {
+        await Trove.update(itemId, { collection });
+        pinIndex[pinId] = { id: itemId, c: collection };
+        moved++;
+      } catch { /* moved again next time */ }
+    }
+    await chrome.storage.local.set({ pinIndex });
+    await set({ running: false, at: Date.now(), saved, moved, errors });
+    if (manual || saved) notify('', 'Pinterest saves synced', `${saved} new · ${total - saved - errors} already in Trove${moved ? ` · ${moved} moved` : ''}${errors ? ` · ${errors} failed` : ''}`);
+    return { total, saved, moved, errors };
+  } catch (e) {
+    await set({ running: false, at: Date.now(), error: e.message || String(e) });
+    if (manual) notify('', 'Pinterest sync failed', e.message || String(e));
+    throw e;
+  } finally {
+    clearInterval(keep);
+  }
 }
 
 /** Load the optional git-ignored config.local.json (preconfigured Notion + Trove connection).
@@ -411,6 +483,9 @@ async function handle(msg) {
       return { item: await Trove.lookup(msg.url).catch(() => null) };
     case 'importBookmarks':
       importBrowserBookmarks().catch((e) => notify('', 'Bookmark import failed', e.message));
+      return {};
+    case 'syncPinterest':
+      syncPinterest({ manual: true }).catch(() => {});
       return {};
     case 'setTrove': {
       await S.setSettings({ troveUrl: msg.url.replace(/\/$/, ''), ...(msg.key ? { troveKey: msg.key } : {}) });

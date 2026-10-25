@@ -74,8 +74,13 @@ export const TYPE_OPTIONS = [
   opt('Long post', 'default'),
 ];
 
-export const SOURCES = ['Web app', 'Extension', 'Agent', 'API', 'Browser bookmarks', 'Import', 'Share', 'Bookmarklet', 'Shortcut', 'Bookmark', 'Manual'];
-const SOURCE_COLORS = ['blue', 'purple', 'orange', 'gray', 'yellow', 'brown', 'green', 'pink', 'red', 'blue', 'green'];
+export const SOURCES = ['Web app', 'Extension', 'Agent', 'API', 'Browser bookmarks', 'Import', 'Share', 'Bookmarklet', 'Shortcut', 'Bookmark', 'Manual', 'Pinterest'];
+const SOURCE_COLORS = ['blue', 'purple', 'orange', 'gray', 'yellow', 'brown', 'green', 'pink', 'red', 'blue', 'green', 'red'];
+
+/** Collections Trove files things into by itself. Agents never use these for anything else. */
+export const X_COLLECTION = 'X bookmarks';
+export const BROWSER_COLLECTION = 'Browser bookmarks';
+export const PINTEREST_COLLECTION = 'Pinterest';
 
 /** Dedupe key for an X post (matches the web app's urlKey()). */
 export const xKey = (id) => `x.com/status/${id}`;
