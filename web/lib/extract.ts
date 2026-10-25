@@ -286,6 +286,30 @@ export function playerFromPageScripts(scripts: string): any | null {
   }
 }
 
+export type YouTubeData = { title?: string; author?: string; description?: string; duration?: number | null; published?: string | null; transcript?: string; views?: number | null };
+
+/** Markdown sections for YouTube data (used at save time and when the extension enriches later). */
+export function youtubeSections(d: YouTubeData) {
+  const parts: string[] = [];
+  if (d.description) parts.push('## Description', linkifyMd(d.description));
+  if (d.transcript) parts.push('## Transcript', d.transcript);
+  return tidyMd(parts.join('\n\n'));
+}
+
+function applyYouTube(e: Extracted, d: YouTubeData): Extracted {
+  const out = { ...e, type: 'Video' as const, platform: 'YouTube' as const };
+  out.title = d.title || out.title;
+  out.author = d.author || out.author;
+  out.description = d.description || out.description;
+  out.duration = d.duration || out.duration;
+  out.published = d.published || out.published;
+  const embed = out.embed || out.url;
+  out.markdown = tidyMd([`<video src="${embed}"></video>`, youtubeSections(d)].filter(Boolean).join('\n\n'));
+  out.text = [out.title, d.description, d.transcript].filter(Boolean).join(' ');
+  out.words = wordCount(String(d.transcript || d.description || ''));
+  return out;
+}
+
 const clock = (s: number) => `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ':' : ''}${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 const linkifyMd = (s: string) => s.replace(/(https?:\/\/[^\s)]+)/g, '[$1]($1)').replace(/\n/g, '  \n');
 
@@ -495,7 +519,7 @@ async function fallbackHtml(url: string, e: Extracted, keepArticle = true): Prom
       return { ...e, type, media, title: e.title || name.replace(/\.\w{2,4}$/, '').replace(/[-_]+/g, ' '), image: type === 'Image' ? url : e.image };
     }
     const page = parseHtmlPage(r.text, r.url, keepArticle);
-    return { ...page, platform: e.platform, type: e.type !== 'Link' && page.type !== 'Article' ? e.type : page.type };
+    return { ...page, platform: e.platform, type: e.type !== 'Link' && page.type !== 'Article' ? e.type : page.type, extra: { ...page.extra, httpStatus: r.status } };
   } catch {
     return { ...e, title: e.title || domainOf(url) };
   }
@@ -521,8 +545,10 @@ export async function extract(url: string): Promise<Extracted> {
 }
 
 /** Merge metadata captured in the browser (extension / bookmarklet) over server-side extraction. */
-export function mergeClientMeta(e: Extracted, m: Partial<{ title: string; description: string; image: string; author: string; published: string; siteName: string; html: string; text: string; lang: string }>): Extracted {
-  const out = { ...e };
+export function mergeClientMeta(e: Extracted, m: Partial<{ title: string; description: string; image: string; author: string; published: string; siteName: string; html: string; text: string; lang: string; youtube: YouTubeData }>): Extracted {
+  let out = { ...e };
+  // YouTube data read by the browser extension (servers often get bot-checked by YouTube).
+  if (m.youtube && e.platform === 'YouTube' && (!e.duration || !e.markdown.includes('## Transcript'))) out = applyYouTube(out, m.youtube);
   if (m.html && !out.markdown) {
     const page = parseHtmlPage(m.html, e.url, true);
     if (page.markdown) {

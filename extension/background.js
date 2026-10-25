@@ -10,6 +10,7 @@ import { Notion, parseNotionId } from './lib/notion.js';
 import { createDatabase, createViews, ensureSchema, resolveDataSource } from './lib/schema.js';
 import { tweetIdFromUrl } from './lib/util.js';
 import * as Trove from './lib/trove.js';
+import { videoIdOf, youtubeData } from './lib/youtube.js';
 
 // ---------- listeners (registered synchronously at startup) ----------
 
@@ -33,7 +34,10 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
 chrome.runtime.onStartup.addListener(() => boot().then(resumeIfNeeded));
 
 chrome.alarms.onAlarm.addListener(async ({ name }) => {
-  if (name === 'sync') Sync.syncNew('scheduled').catch(notifyError);
+  if (name === 'sync') {
+    Sync.syncNew('scheduled').catch(notifyError);
+    enrichVideos().catch(() => {});
+  }
   if (name === 'tick') resumeIfNeeded();
 });
 
@@ -144,13 +148,28 @@ async function saveTab(tab, extra = {}) {
   try {
     [{ result: captured }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: Trove.captureFromPage });
   } catch { /* restricted page: the server fetches it instead */ }
+  const vid = videoIdOf(tab.url);
+  const youtube = vid ? await youtubeData(vid).catch(() => null) : null;
   return saveUrl({
     url: tab.url,
     title: captured?.meta?.title || tab.title,
-    meta: captured?.meta,
+    meta: { ...(captured?.meta || {}), ...(youtube ? { youtube, html: undefined } : {}) },
     highlight: extra.highlight ?? (captured?.selection || undefined),
     ...extra,
   });
+}
+
+/** Videos saved from the phone or by agents: fill in description, duration and transcript from this browser. */
+async function enrichVideos(max = 8) {
+  const { troveKey } = await S.getSettings();
+  if (!troveKey) return;
+  const { items } = await Trove.list('type:video site:youtube.com', 40);
+  for (const it of items.filter((i) => i.db === 'library' && !i.duration).slice(0, max)) {
+    const vid = videoIdOf(it.url);
+    if (!vid) continue;
+    const data = await youtubeData(vid).catch(() => null);
+    if (data) await Trove.enrich(it.id, { youtube: data }).catch(() => {});
+  }
 }
 
 async function importBrowserBookmarks() {
@@ -341,6 +360,9 @@ async function handle(msg) {
       const tab = await chrome.tabs.get(msg.tabId);
       return saveTab(tab);
     }
+    case 'enrichVideos':
+      await enrichVideos(20);
+      return {};
     case 'lookup':
       return { item: await Trove.lookup(msg.url).catch(() => null) };
     case 'importBookmarks':

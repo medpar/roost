@@ -8,7 +8,7 @@ import { P as XP, ensureSchema as ensureXSchema } from '../../extension/lib/sche
 import { buildBlocks, buildProperties, titleFor } from '../../extension/lib/render.js';
 import { chunk } from '../../extension/lib/util.js';
 import { env } from './env';
-import { extract, fxTweet, mergeClientMeta, plain, type Extracted } from './extract';
+import { extract, fxTweet, mergeClientMeta, plain, youtubeSections, type Extracted, type YouTubeData } from './extract';
 import { fxToPost } from './fx';
 import { parseQuery, type Query } from './query';
 import { cleanUrl, domainOf, findUrls, isUrl, platformOf, tweetId, urlKey } from './url';
@@ -509,7 +509,7 @@ async function createLibraryPage(url: string, key: string, e: Extracted, input: 
     [L.readingTime]: { number: words > 120 ? Math.max(1, Math.round(words / 230)) : null },
     [L.duration]: { number: e.duration },
     [L.cover]: { url: e.image || null },
-    [L.status]: { select: { name: 'OK' } },
+    [L.status]: { select: { name: [404, 410].includes(Number(e.extra.httpStatus)) ? 'Broken' : 'OK' } },
     ...baseProps(input),
   };
   if (e.published) props[L.published] = { date: { start: e.published } };
@@ -655,6 +655,25 @@ export async function update(id: string, patch: Patch): Promise<Item> {
 
 export async function remove(id: string) {
   await notion().updatePage(id, { in_trash: true });
+}
+
+/** Fill in YouTube details later (sent by the extension, which can read YouTube from the user's browser). */
+export async function enrichYouTube(id: string, d: YouTubeData) {
+  const page = await notion().req('GET', `/pages/${id}`);
+  const item = toItem(page);
+  if (item.db !== 'library') throw new Error('Not a library item');
+  const md = youtubeSections(d);
+  if (md) await notion().req('PATCH', `/pages/${id}/markdown`, { type: 'insert_content', insert_content: { content: md } });
+  const words = ((d.transcript || d.description || '').match(/[\p{L}\p{N}]+/gu) || []).length;
+  const props: Record<string, unknown> = {
+    [L.duration]: { number: d.duration || null },
+    [L.words]: { number: words || null },
+    [L.text]: { rich_text: rt([item.title, d.description, d.transcript].filter(Boolean).join('\n').slice(0, 12000)) },
+  };
+  if (d.description) props[L.description] = { rich_text: rt(d.description) };
+  if (d.published) props[L.published] = { date: { start: d.published } };
+  if (d.author && !item.author) props[L.author] = { rich_text: rt(d.author) };
+  return toItem(await notion().updatePage(id, { properties: props }));
 }
 
 export async function addHighlight(id: string, text: string, note?: string) {
