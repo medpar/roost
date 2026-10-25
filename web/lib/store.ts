@@ -1,10 +1,9 @@
-// Trove data layer. Two Notion data sources behind one item model:
-//   library: everything you save (links, articles, videos, posts, notes, files)
-//   x:       X/Twitter posts (synced bookmarks + posts saved from anywhere)
+// Trove data layer: one Notion data source for everything you save (links, articles, videos,
+// posts, notes, files). X bookmarks are items of Type "X bookmark" with extra X columns.
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { Notion, NotionError } from '../../extension/lib/notion.js';
-import { P as XP, ensureSchema as ensureXSchema } from '../../extension/lib/schema.js';
+import { ensureSchema, xKey } from '../../extension/lib/schema.js';
 import { buildBlocks, buildProperties, titleFor } from '../../extension/lib/render.js';
 import { chunk } from '../../extension/lib/util.js';
 import { env } from './env';
@@ -15,49 +14,41 @@ import { cleanUrl, domainOf, findUrls, isUrl, platformOf, tweetId, urlKey } from
 
 // ---------- schema ----------
 
-export { L, TYPES, librarySchema } from './library-schema.js';
-import { L, librarySchema } from './library-schema.js';
+export { L, TYPES, X_TYPE, librarySchema } from './library-schema.js';
+import { L, X_TYPE } from './library-schema.js';
 
 // ---------- client ----------
 
 let notionClient: Notion | null = null;
 export const notion = () => (notionClient ||= new Notion(env().notionToken, { rps: 2.6 }));
 
-const schemaReady: Record<string, Promise<Record<string, any>>> = {};
-const ensured = new Set<string>();
+let schemaReady: Promise<Record<string, any>> | null = null;
+let ensured = false;
 
 /** Make sure every property exists (once per instance); returns the data source schema (cached). */
-export function schemaOf(db: 'library' | 'x', force = false): Promise<Record<string, any>> {
-  if (!schemaReady[db] || force) {
-    schemaReady[db] = (async () => {
-      const id = db === 'library' ? env().libraryDs : env().xDs;
-      if (!ensured.has(db)) {
-        if (db === 'x') await ensureXSchema(notion(), id);
-        else await ensureLibrary(id);
-        ensured.add(db);
+export function schemaOf(force = false): Promise<Record<string, any>> {
+  if (!schemaReady || force) {
+    schemaReady = (async () => {
+      const id = env().libraryDs;
+      if (!ensured) {
+        await ensureSchema(notion(), id);
+        ensured = true;
       }
       const ds = await notion().getDataSource(id);
       return ds.properties as Record<string, any>;
     })().catch((e) => {
-      delete schemaReady[db];
+      schemaReady = null;
       throw e;
     });
   }
-  return schemaReady[db];
-}
-
-async function ensureLibrary(id: string) {
-  const ds = await notion().getDataSource(id);
-  const missing: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(librarySchema())) if (!ds.properties[k] && k !== L.title) missing[k] = v;
-  if (Object.keys(missing).length) await notion().updateDataSource(id, { properties: missing });
+  return schemaReady;
 }
 
 // ---------- items ----------
 
 export type Item = {
   id: string;
-  db: 'library' | 'x';
+  db: 'library';
   url: string;
   title: string;
   excerpt: string;
@@ -98,56 +89,23 @@ function coverOf(page: any) {
 
 export function toItem(page: any): Item {
   const pr = page.properties || {};
-  const isX = page.parent?.data_source_id?.replace(/-/g, '') === env().xDs.replace(/-/g, '');
-  if (isX) {
-    const files = pr[XP.media]?.files || [];
-    const types: string[] = multi(pr[XP.type]);
-    const type = types.includes('Video') || types.includes('GIF') ? 'Video' : types.includes('Article') ? 'Article' : 'Post';
-    return {
-      id: page.id,
-      db: 'x',
-      url: pr[XP.url]?.url || '',
-      title: txt(pr[XP.title]),
-      excerpt: txt(pr[XP.text]).slice(0, 400),
-      domain: 'x.com',
-      type,
-      platform: 'X',
-      collection: sel(pr[XP.collection]),
-      tags: multi(pr[XP.tags]),
-      cover: files.map(fileUrl).find((u: string) => u && !/\.mp4/.test(u)) || null,
-      icon: page.icon?.external?.url || null,
-      author: [txt(pr[XP.author]), txt(pr[XP.handle])].filter(Boolean).join(' '),
-      published: pr[XP.posted]?.date?.start || null,
-      created: page.created_time,
-      updated: page.last_edited_time,
-      favorite: !!pr[XP.favorite]?.checkbox,
-      read: !!pr[XP.read]?.checkbox,
-      note: txt(pr[XP.note]),
-      status: null,
-      highlights: 0,
-      readingTime: null,
-      duration: null,
-      remind: null,
-      source: sel(pr[XP.source]),
-      via: '',
-      notionUrl: page.url,
-      stats: { likes: pr[XP.likes]?.number ?? null, reposts: pr[XP.reposts]?.number ?? null, views: pr[XP.views]?.number ?? null, thread: pr[XP.threadLen]?.number ?? null },
-    };
-  }
+  const type = sel(pr[L.type]) || 'Link';
+  const x = type === X_TYPE;
+  const files = pr[L.media]?.files || [];
   return {
     id: page.id,
     db: 'library',
     url: pr[L.url]?.url || '',
     title: txt(pr[L.title]),
-    excerpt: txt(pr[L.description]).slice(0, 400),
-    domain: txt(pr[L.domain]),
-    type: sel(pr[L.type]) || 'Link',
-    platform: sel(pr[L.platform]) || 'Web',
+    excerpt: (x ? txt(pr[L.text]) : txt(pr[L.description])).slice(0, 400),
+    domain: txt(pr[L.domain]) || (x ? 'x.com' : ''),
+    type,
+    platform: sel(pr[L.platform]) || (x ? 'X' : 'Web'),
     collection: sel(pr[L.collection]),
     tags: multi(pr[L.tags]),
-    cover: coverOf(page) || pr[L.cover]?.url || null,
+    cover: coverOf(page) || pr[L.cover]?.url || (x ? files.map(fileUrl).find((u: string) => u && !/\.mp4/.test(u)) : null) || null,
     icon: page.icon?.external?.url || page.icon?.file?.url || null,
-    author: txt(pr[L.author]),
+    author: x ? [txt(pr[L.author]), txt(pr[L.handle])].filter(Boolean).join(' ') : txt(pr[L.author]),
     published: pr[L.published]?.date?.start || null,
     created: page.created_time,
     updated: page.last_edited_time,
@@ -162,6 +120,7 @@ export function toItem(page: any): Item {
     source: sel(pr[L.source]),
     via: txt(pr[L.via]),
     notionUrl: page.url,
+    ...(x ? { stats: { likes: pr[L.likes]?.number ?? null, reposts: pr[L.reposts]?.number ?? null, views: pr[L.views]?.number ?? null, thread: pr[L.threadLen]?.number ?? null } } : {}),
   };
 }
 
@@ -169,82 +128,74 @@ export function toItem(page: any): Item {
 
 type F = Record<string, unknown>;
 
-function textOr(db: 'library' | 'x', word: string): F {
-  const props = db === 'library' ? [L.title, L.text, L.description, L.note, L.author, L.domain] : [XP.title, XP.text, XP.note, XP.author, XP.handle];
-  const ors: F[] = props.map((p) => ({ property: p, rich_text: { contains: word } }));
-  ors.push({ property: db === 'library' ? L.url : XP.url, url: { contains: word } });
+function textOr(word: string, props: Record<string, any>): F {
+  const fields = [L.title, L.text, L.description, L.note, L.author, L.domain, ...(props[L.handle] ? [L.handle] : [])];
+  const ors: F[] = fields.map((p) => ({ property: p, rich_text: { contains: word } }));
+  ors.push({ property: L.url, url: { contains: word } });
   return { or: ors };
 }
 
-/** Build a Notion filter for one data source. Returns null when the query can't match that source. */
-function buildFilter(db: 'library' | 'x', q: Query, props: Record<string, any> = {}): F | null | undefined {
+/** Build the Notion filter. Returns null when the query can't match anything (e.g. an unknown tag). */
+function buildFilter(q: Query, props: Record<string, any> = {}): F | null | undefined {
   const and: F[] = [];
-  const T = db === 'library' ? L : XP;
-  // Notion rejects select filters on options that don't exist yet; such a source simply can't match.
+  // Notion rejects select filters on options that don't exist yet; such a query simply has no results.
   const has = (prop: string, name: string) => {
     const p = props[prop];
     const opts = p?.select?.options || p?.multi_select?.options;
     return !opts || opts.some((o: any) => o.name === name);
   };
-  if (q.tags.some((t) => !has(T.tags, t))) return null;
-  if (q.collection && !has(T.collection, q.collection)) return null;
-  if (db === 'library' && q.types.some((t) => !has(L.type, t))) return null;
-  if (db === 'library' && q.platform && !has(L.platform, q.platform)) return null;
-  if (q.lang && !has(db === 'library' ? L.lang : XP.lang, q.lang)) return null;
-  if (q.source && q.source !== 'all' && q.source !== db) return null;
-  if (q.platform && (db === 'x' ? q.platform !== 'X' : q.platform === 'X')) return null;
-  if (q.platform && db === 'library') and.push({ property: L.platform, select: { equals: q.platform } });
+  const kind = (k: string) => (props[L.postKind] && has(L.postKind, k) ? { property: L.postKind, multi_select: { contains: k } } : null);
+  const isType = (t: string) => (has(L.type, t) ? { property: L.type, select: { equals: t } } : null);
+  // A content type also matches X bookmarks that contain it (an X video counts as a video).
+  const typeCond = (t: string): F | null => {
+    const parts = [isType(t), ...(t === 'Post' ? [isType(X_TYPE)] : t === 'Video' ? [kind('Video'), kind('GIF')] : t === 'Image' ? [kind('Photo')] : t === 'Article' ? [kind('Article')] : [])].filter(Boolean) as F[];
+    return parts.length === 0 ? null : parts.length === 1 ? parts[0] : { or: parts };
+  };
+  if (q.tags.some((t) => !has(L.tags, t))) return null;
+  if (q.collection && !has(L.collection, q.collection)) return null;
+  if (q.platform) {
+    if (!has(L.platform, q.platform)) return null;
+    and.push({ property: L.platform, select: { equals: q.platform } });
+  }
+  if (q.lang && !has(L.lang, q.lang)) return null;
+  if (q.source === 'x') {
+    if (!has(L.type, X_TYPE)) return null;
+    and.push({ property: L.type, select: { equals: X_TYPE } });
+  } else if (q.source === 'library' && has(L.type, X_TYPE)) and.push({ property: L.type, select: { does_not_equal: X_TYPE } });
   for (const t of q.types) {
-    if (db === 'library') and.push({ property: L.type, select: { equals: t } });
-    else if (t === 'Post') continue;
-    else if (['Video', 'Article', 'Link', 'Poll'].includes(t)) and.push({ property: XP.type, multi_select: { contains: t } });
-    else if (t === 'Image') and.push({ property: XP.type, multi_select: { contains: 'Photo' } });
-    else return null;
+    const c = typeCond(t);
+    if (!c) return null;
+    and.push(c);
   }
-  for (const t of q.notTypes) {
-    if (db === 'library' && has(L.type, t)) and.push({ property: L.type, select: { does_not_equal: t } });
-    else if (t === 'Post') return null;
-  }
-  for (const s of q.sites) {
-    if (db === 'library') and.push({ property: L.domain, rich_text: { contains: s.replace(/^www\./, '') } });
-    else if (!/^(x|twitter)\.com$/.test(s)) return null;
-  }
+  for (const t of q.notTypes) if (has(L.type, t)) and.push({ property: L.type, select: { does_not_equal: t } });
+  for (const site of q.sites) and.push({ property: L.domain, rich_text: { contains: site.replace(/^www\./, '').replace(/^twitter\.com$/, 'x.com') } });
   for (const f of q.fields) {
-    if (f.field === 'link') and.push({ property: T.url, url: { contains: f.value } });
-    else if (f.field === 'title') and.push({ property: T.title, title: { contains: f.value } });
-    else if (f.field === 'note') and.push({ property: T.note, rich_text: { contains: f.value } });
-    else if (f.field === 'excerpt') and.push({ property: db === 'library' ? L.description : XP.text, rich_text: { contains: f.value } });
+    if (f.field === 'link') and.push({ property: L.url, url: { contains: f.value } });
+    else if (f.field === 'title') and.push({ property: L.title, title: { contains: f.value } });
+    else if (f.field === 'note') and.push({ property: L.note, rich_text: { contains: f.value } });
+    else if (f.field === 'excerpt') and.push({ or: [{ property: L.description, rich_text: { contains: f.value } }, { property: L.text, rich_text: { contains: f.value } }] });
   }
-  const words = q.terms.map((w) => textOr(db, w));
+  const words = q.terms.map((w) => textOr(w, props));
   if (words.length) {
     if (q.matchAny) and.push({ or: words.flatMap((w) => (w.or as F[])).slice(0, 100) });
     else and.push(...words);
   }
   for (const w of q.exclude) {
-    and.push({ property: T.title, title: { does_not_contain: w } });
-    and.push({ property: db === 'library' ? L.text : XP.text, rich_text: { does_not_contain: w } });
+    and.push({ property: L.title, title: { does_not_contain: w } });
+    and.push({ property: L.text, rich_text: { does_not_contain: w } });
   }
-  for (const t of q.tags) and.push({ property: T.tags, multi_select: { contains: t } });
-  for (const t of q.notTags) if (has(T.tags, t)) and.push({ property: T.tags, multi_select: { does_not_contain: t } });
-  if (q.noTags) and.push({ property: T.tags, multi_select: { is_empty: true } });
-  if (q.collection === null) and.push({ property: T.collection, select: { is_empty: true } });
-  else if (q.collection) and.push({ property: T.collection, select: { equals: q.collection } });
-  if (q.favorite !== undefined) and.push({ property: T.favorite, checkbox: { equals: q.favorite } });
-  if (q.read !== undefined) and.push({ property: T.read, checkbox: { equals: q.read } });
-  if (q.hasNote !== undefined) and.push({ property: T.note, rich_text: q.hasNote ? { is_not_empty: true } : { is_empty: true } });
-  if (q.hasHighlights) {
-    if (db === 'x') return null;
-    and.push({ property: L.highlights, number: { greater_than: 0 } });
-  }
-  if (q.broken !== undefined) {
-    if (db === 'x') return q.broken ? null : undefined;
-    and.push(q.broken ? { property: L.status, select: { equals: 'Broken' } } : { property: L.status, select: { does_not_equal: 'Broken' } });
-  }
-  if (q.reminder) {
-    if (db === 'x') return null;
-    and.push({ property: L.remind, date: { is_not_empty: true } });
-  }
-  if (q.lang) and.push({ property: db === 'library' ? L.lang : XP.lang, select: { equals: q.lang } });
+  for (const t of q.tags) and.push({ property: L.tags, multi_select: { contains: t } });
+  for (const t of q.notTags) if (has(L.tags, t)) and.push({ property: L.tags, multi_select: { does_not_contain: t } });
+  if (q.noTags) and.push({ property: L.tags, multi_select: { is_empty: true } });
+  if (q.collection === null) and.push({ property: L.collection, select: { is_empty: true } });
+  else if (q.collection) and.push({ property: L.collection, select: { equals: q.collection } });
+  if (q.favorite !== undefined) and.push({ property: L.favorite, checkbox: { equals: q.favorite } });
+  if (q.read !== undefined) and.push({ property: L.read, checkbox: { equals: q.read } });
+  if (q.hasNote !== undefined) and.push({ property: L.note, rich_text: q.hasNote ? { is_not_empty: true } : { is_empty: true } });
+  if (q.hasHighlights) and.push({ property: L.highlights, number: { greater_than: 0 } });
+  if (q.broken !== undefined) and.push(q.broken ? { property: L.status, select: { equals: 'Broken' } } : { property: L.status, select: { does_not_equal: 'Broken' } });
+  if (q.reminder) and.push({ property: L.remind, date: { is_not_empty: true } });
+  if (q.lang) and.push({ property: L.lang, select: { equals: q.lang } });
   if (q.createdAfter) and.push({ timestamp: 'created_time', created_time: { on_or_after: q.createdAfter } });
   if (q.createdBefore) and.push({ timestamp: 'created_time', created_time: { before: q.createdBefore } });
   if (!and.length) return undefined;
@@ -253,25 +204,24 @@ function buildFilter(db: 'library' | 'x', q: Query, props: Record<string, any> =
 
 export type Sort = 'newest' | 'oldest' | 'title' | 'title_desc' | 'site' | 'published';
 
-function sortsFor(db: 'library' | 'x', sort: Sort) {
-  const T = db === 'library' ? L : XP;
+function sortsFor(sort: Sort) {
   switch (sort) {
     case 'oldest':
       return [{ timestamp: 'created_time', direction: 'ascending' }];
     case 'title':
-      return [{ property: T.title, direction: 'ascending' }];
+      return [{ property: L.title, direction: 'ascending' }];
     case 'title_desc':
-      return [{ property: T.title, direction: 'descending' }];
+      return [{ property: L.title, direction: 'descending' }];
     case 'site':
-      return db === 'library' ? [{ property: L.domain, direction: 'ascending' }, { timestamp: 'created_time', direction: 'descending' }] : [{ timestamp: 'created_time', direction: 'descending' }];
+      return [{ property: L.domain, direction: 'ascending' }, { timestamp: 'created_time', direction: 'descending' }];
     case 'published':
-      return [{ property: db === 'library' ? L.published : XP.posted, direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }];
+      return [{ property: L.published, direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }];
     default:
       return [{ timestamp: 'created_time', direction: 'descending' }];
   }
 }
 
-type Cursor = { l?: string | null; x?: string | null; t?: string; ids?: string[] };
+type Cursor = { l?: string | null };
 const enc = (c: Cursor) => Buffer.from(JSON.stringify(c)).toString('base64url');
 const dec = (s?: string | null): Cursor => {
   try {
@@ -283,53 +233,18 @@ const dec = (s?: string | null): Cursor => {
 
 export type ListOptions = { q?: string; query?: Partial<Query>; sort?: Sort; cursor?: string | null; limit?: number; source?: 'all' | 'library' | 'x' };
 
-/** List items. Merges both sources (newest/oldest) with a stable time cursor. */
+/** List items, newest first by default. The cursor wraps Notion's own. */
 export async function list(opts: ListOptions = {}): Promise<{ items: Item[]; cursor: string | null }> {
   const limit = Math.min(Math.max(opts.limit || 40, 1), 100);
   const sort = opts.sort || 'newest';
   const q = parseQuery(opts.q || '', { ...(opts.query || {}), source: opts.query?.source || opts.source || 'all' });
-  const [lp, xp] = await Promise.all([schemaOf('library'), schemaOf('x')]);
-  const schema = { library: lp, x: xp };
-  const sources = (['library', 'x'] as const).filter((db) => buildFilter(db, q, schema[db]) !== null);
-  if (!sources.length) return { items: [], cursor: null };
+  const filter = buildFilter(q, await schemaOf());
   const c = dec(opts.cursor);
-
-  // Single source (or sorts that can't be merged): use Notion's own cursor.
-  const mergeable = sort === 'newest' || sort === 'oldest';
-  if (sources.length === 1 || !mergeable) {
-    const db = sources.length === 1 ? sources[0] : 'library';
-    const key = db === 'library' ? 'l' : 'x';
-    if (c[key] === null) return { items: [], cursor: null };
-    const res = await notion().query(dsOf(db), clean({ filter: buildFilter(db, q, schema[db]), sorts: sortsFor(db, sort), page_size: limit, start_cursor: c[key] || undefined }));
-    return { items: res.results.map(toItem), cursor: res.has_more ? enc({ [key]: res.next_cursor }) : null };
-  }
-
-  // Merged: query both up to the boundary minute, skip ids already returned at that minute.
-  const desc = sort === 'newest';
-  const skip = new Set(c.ids || []);
-  const results = await Promise.all(
-    sources.map(async (db) => {
-      const base = buildFilter(db, q, schema[db]);
-      const bound = c.t ? { timestamp: 'created_time', created_time: desc ? { on_or_before: c.t } : { on_or_after: c.t } } : null;
-      const filter = bound ? (base ? { and: [...((base as any).and || [base]), bound] } : bound) : base;
-      const res = await notion().query(dsOf(db), clean({ filter, sorts: sortsFor(db, sort), page_size: Math.min(100, limit + skip.size + 1) }));
-      return { items: res.results.map(toItem), more: res.has_more };
-    }),
-  );
-  const all = results
-    .flatMap((r) => r.items)
-    .filter((i) => !skip.has(i.id))
-    .sort((a, b) => (desc ? cmp(b, a) : cmp(a, b)));
-  const page = all.slice(0, limit);
-  const more = all.length > limit || results.some((r) => r.more);
-  if (!more || !page.length) return { items: page, cursor: null };
-  const last = page[page.length - 1].created;
-  const ids = [...page, ...(c.t === last ? [...skip].map((id) => ({ id, created: last })) : [])].filter((i) => i.created === last).map((i) => i.id);
-  return { items: page, cursor: enc({ t: last, ids }) };
+  if (filter === null || c.l === null) return { items: [], cursor: null };
+  const res = await notion().query(env().libraryDs, clean({ filter, sorts: sortsFor(sort), page_size: limit, start_cursor: c.l || undefined }));
+  return { items: res.results.map(toItem), cursor: res.has_more ? enc({ l: res.next_cursor }) : null };
 }
 
-const cmp = (a: Item, b: Item) => (a.created === b.created ? a.id.localeCompare(b.id) : a.created.localeCompare(b.created));
-const dsOf = (db: 'library' | 'x') => (db === 'library' ? env().libraryDs : env().xDs);
 function clean<T extends Record<string, unknown>>(o: T): T {
   for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
   return o;
@@ -358,8 +273,7 @@ async function findLibraryByKey(key: string) {
 }
 
 async function findTweet(id: string) {
-  const res = await notion().query(env().xDs, { filter: { property: XP.id, rich_text: { equals: id } }, page_size: 1 });
-  return res.results[0] || null;
+  return (await findLibraryByKey(xKey(id))) || (await notion().query(env().libraryDs, { filter: { property: L.postId, rich_text: { equals: id } }, page_size: 1 })).results[0] || null;
 }
 
 /** Look up whether URLs are already saved (for the extension's ✓ badge and agents). */
@@ -432,7 +346,7 @@ export async function save(input: SaveInput): Promise<SaveResult> {
   url = cleanUrl(url);
   const tid = tweetId(url);
   if (tid) return saveTweet(tid, { ...input, note });
-  await schemaOf('library');
+  await schemaOf();
   const key = urlKey(url);
   const existing = await findLibraryByKey(key);
   if (existing) return { item: await mergeInto(existing, { ...input, note }), created: false };
@@ -565,7 +479,7 @@ async function createLibraryPage(url: string, key: string, e: Extracted, input: 
 }
 
 async function saveNote(input: SaveInput): Promise<SaveResult> {
-  await schemaOf('library');
+  await schemaOf();
   const text = input.text!.trim();
   const key = `note:${createHash('sha1').update(text).digest('hex').slice(0, 20)}`;
   const existing = await findLibraryByKey(key);
@@ -593,19 +507,19 @@ async function saveNote(input: SaveInput): Promise<SaveResult> {
 /** Saving something that already exists: merge tags, collection, note, highlight instead of duplicating. */
 async function mergeInto(page: any, input: SaveInput): Promise<Item> {
   const item = toItem(page);
-  const T = item.db === 'library' ? L : XP;
+  const T = L;
   const props: Record<string, unknown> = {};
   if (input.tags?.length) props[T.tags] = { multi_select: uniq([...item.tags, ...input.tags]).map((name) => ({ name })) };
   if (input.collection && input.collection !== item.collection) props[T.collection] = { select: { name: selName(input.collection) } };
   if (input.note && !item.note.includes(input.note)) props[T.note] = { rich_text: rt([item.note, input.note].filter(Boolean).join('\n\n')) };
   if (input.favorite) props[T.favorite] = { checkbox: true };
   if (Object.keys(props).length) await notion().updatePage(page.id, { properties: props });
-  if (input.highlight && item.db === 'library') await addHighlight(page.id, input.highlight);
+  if (input.highlight) await addHighlight(page.id, input.highlight);
   return Object.keys(props).length || input.highlight ? (await getItem(page.id)).item : item;
 }
 
 async function saveTweet(id: string, input: SaveInput): Promise<SaveResult> {
-  await schemaOf('x');
+  await schemaOf();
   const existing = await findTweet(id);
   if (existing) return { item: await mergeInto(existing, input), created: false };
   const fx = await fxTweet(id);
@@ -615,14 +529,16 @@ async function saveTweet(id: string, input: SaveInput): Promise<SaveResult> {
   const ids = await Promise.all(media.slice(0, 8).map((m: any, i: number) => importFile(m.url, `${t.id}-${i}.${m.type === 'photo' ? extOf(m.url, 'jpg') : 'mp4'}`, m.type === 'photo' ? 25000 : 120000)));
   const uploads = new Map<string, string>();
   media.slice(0, 8).forEach((m: any, i: number) => ids[i] && uploads.set(m.url, ids[i]!));
-  const props: Record<string, any> = buildProperties(t, { source: input.via ? 'Agent' : 'Web', tags: input.tags || [] });
-  if (input.collection) props[XP.collection] = { select: { name: selName(input.collection) } };
-  if (input.note) props[XP.note] = { rich_text: rt(input.note) };
-  if (input.favorite) props[XP.favorite] = { checkbox: true };
+  const props: Record<string, any> = buildProperties(t, { source: input.source || (input.via ? 'Agent' : 'Web app'), tags: input.tags || [] });
+  if (input.collection) props[L.collection] = { select: { name: selName(input.collection) } };
+  if (input.note) props[L.note] = { rich_text: rt(input.note) };
+  if (input.favorite) props[L.favorite] = { checkbox: true };
+  if (input.read) props[L.read] = { checkbox: true };
+  if (input.via) props[L.via] = { rich_text: rt(input.via) };
   const blocks: any[] = buildBlocks(t, { uploads, raw: true });
   const [first, ...rest] = chunk(blocks, 100);
   const page = await notion().createPage({
-    parent: { type: 'data_source_id', data_source_id: env().xDs },
+    parent: { type: 'data_source_id', data_source_id: env().libraryDs },
     icon: t.author?.avatar ? { type: 'external', external: { url: t.author.avatar } } : { type: 'emoji', emoji: '🐦' },
     properties: props,
     children: first,
@@ -635,8 +551,7 @@ export type Patch = Partial<{ title: string; tags: string[]; collection: string 
 
 export async function update(id: string, patch: Patch): Promise<Item> {
   const page = await notion().req('GET', `/pages/${id}`);
-  const item = toItem(page);
-  const T = item.db === 'library' ? L : XP;
+  const T = L;
   const props: Record<string, unknown> = {};
   if (patch.title !== undefined) props[T.title] = { title: rt(patch.title) };
   if (patch.tags !== undefined) props[T.tags] = { multi_select: uniq(patch.tags).map((name) => ({ name })) };
@@ -644,8 +559,8 @@ export async function update(id: string, patch: Patch): Promise<Item> {
   if (patch.note !== undefined) props[T.note] = { rich_text: rt(patch.note) };
   if (patch.favorite !== undefined) props[T.favorite] = { checkbox: patch.favorite };
   if (patch.read !== undefined) props[T.read] = { checkbox: patch.read };
-  if (patch.remind !== undefined && item.db === 'library') props[L.remind] = { date: patch.remind ? { start: patch.remind } : null };
-  if (patch.url !== undefined && item.db === 'library' && isUrl(patch.url)) {
+  if (patch.remind !== undefined) props[L.remind] = { date: patch.remind ? { start: patch.remind } : null };
+  if (patch.url !== undefined && isUrl(patch.url)) {
     props[L.url] = { url: patch.url };
     props[L.key] = { rich_text: rt(urlKey(patch.url)) };
   }
@@ -661,7 +576,6 @@ export async function remove(id: string) {
 export async function enrichYouTube(id: string, d: YouTubeData) {
   const page = await notion().req('GET', `/pages/${id}`);
   const item = toItem(page);
-  if (item.db !== 'library') throw new Error('Not a library item');
   const md = youtubeSections(d);
   if (md) await notion().req('PATCH', `/pages/${id}/markdown`, { type: 'insert_content', insert_content: { content: md } });
   const words = ((d.transcript || d.description || '').match(/[\p{L}\p{N}]+/gu) || []).length;
@@ -686,7 +600,7 @@ export async function addHighlight(id: string, text: string, note?: string) {
   } catch { /* ignore */ }
   const hasSection = /^#{1,3}\s+Highlights\s*$/m.test(md);
   await notion().req('PATCH', `/pages/${id}/markdown`, { type: 'insert_content', insert_content: { content: hasSection ? quote : `## Highlights\n\n${quote}` } });
-  if (item.db === 'library') await notion().updatePage(id, { properties: { [L.highlights]: { number: item.highlights + 1 } } });
+  await notion().updatePage(id, { properties: { [L.highlights]: { number: item.highlights + 1 } } });
   return { ...item, highlights: item.highlights + 1 };
 }
 
@@ -694,32 +608,21 @@ export async function addHighlight(id: string, text: string, note?: string) {
 
 export type Facet = { name: string; color: string; count: number };
 
-async function options(db: 'library' | 'x', prop: string): Promise<{ id: string; name: string; color: string }[]> {
-  const props = await schemaOf(db);
-  const p = props[prop];
-  return p?.select?.options || p?.multi_select?.options || [];
-}
-
-/** Rename (or merge into an existing name) a collection or tag across both sources. */
+/** Rename (or merge into an existing name) a collection or tag everywhere. */
 export async function renameFacet(kind: 'collection' | 'tag', from: string, to: string) {
   to = selName(to);
   let changed = 0;
-  for (const db of ['library', 'x'] as const) {
-    const T = db === 'library' ? L : XP;
-    const prop = kind === 'collection' ? T.collection : T.tags;
-    const filter = kind === 'collection' ? { property: prop, select: { equals: from } } : { property: prop, multi_select: { contains: from } };
-    for await (const page of notion().queryAll(dsOf(db), { filter })) {
-      if (kind === 'collection') await notion().updatePage(page.id, { properties: { [prop]: to ? { select: { name: to } } : { select: null } } });
-      else {
-        const tags = multi(page.properties[prop]).flatMap((t: string) => (t === from ? (to ? [to] : []) : [t]));
-        await notion().updatePage(page.id, { properties: { [prop]: { multi_select: uniq(tags).map((name) => ({ name })) } } });
-      }
-      changed++;
+  const prop = kind === 'collection' ? L.collection : L.tags;
+  const filter = kind === 'collection' ? { property: prop, select: { equals: from } } : { property: prop, multi_select: { contains: from } };
+  for await (const page of notion().queryAll(env().libraryDs, { filter })) {
+    if (kind === 'collection') await notion().updatePage(page.id, { properties: { [prop]: to ? { select: { name: to } } : { select: null } } });
+    else {
+      const tags = multi(page.properties[prop]).flatMap((t: string) => (t === from ? (to ? [to] : []) : [t]));
+      await notion().updatePage(page.id, { properties: { [prop]: { multi_select: uniq(tags).map((name) => ({ name })) } } });
     }
+    changed++;
   }
-  delete schemaReady.library;
-  delete schemaReady.x;
-  statsCache = null;
+  invalidateStats();
   return { changed };
 }
 
@@ -751,42 +654,36 @@ export async function stats({ fresh = false } = {}): Promise<Stats> {
   if (statsCache && !fresh && Date.now() - statsCache.at < 5 * 60 * 1000) return statsCache;
   if (statsPending) return statsPending;
   statsPending = (async () => {
-    const [lp, xp] = await Promise.all([schemaOf('library'), schemaOf('x')]);
+    const props = await schemaOf();
     const s: Stats = { total: 0, library: 0, x: 0, unsorted: 0, favorites: 0, unread: 0, notes: 0, highlights: 0, broken: 0, reminders: 0, noTags: 0, collections: [], tags: [], types: [], platforms: [], at: Date.now() };
     const col = new Map<string, number>();
     const tag = new Map<string, number>();
     const typ = new Map<string, number>();
     const plat = new Map<string, number>();
     const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) || 0) + 1);
-    const want = (props: Record<string, any>, names: string[]) => names.map((n) => props[n]?.id).filter(Boolean);
-    const scan = async (db: 'library' | 'x', props: Record<string, any>) => {
-      const T = db === 'library' ? L : XP;
-      const ids = want(props, db === 'library' ? [L.collection, L.tags, L.type, L.platform, L.favorite, L.read, L.note, L.highlights, L.status, L.remind] : [XP.collection, XP.tags, XP.type, XP.favorite, XP.read, XP.note]);
-      for await (const page of notion().queryAll(dsOf(db), {}, ids)) {
-        const it = toItem({ ...page, properties: page.properties });
-        s.total++;
-        s[db]++;
-        if (it.collection) bump(col, it.collection);
-        else s.unsorted++;
-        if (!it.tags.length) s.noTags++;
-        it.tags.forEach((t) => bump(tag, t));
-        bump(typ, it.type);
-        bump(plat, it.platform);
-        if (it.favorite) s.favorites++;
-        if (!it.read) s.unread++;
-        if (page.properties[T.note] && txt(page.properties[T.note])) s.notes++;
-        if (it.highlights) s.highlights++;
-        if (it.status === 'Broken') s.broken++;
-        if (it.remind) s.reminders++;
-      }
-    };
-    await Promise.all([scan('library', lp), scan('x', xp)]);
+    const ids = [L.collection, L.tags, L.type, L.platform, L.favorite, L.read, L.note, L.highlights, L.status, L.remind].map((n) => props[n]?.id).filter(Boolean);
+    for await (const page of notion().queryAll(env().libraryDs, {}, ids)) {
+      const it = toItem(page);
+      s.total++;
+      if (it.type === X_TYPE) s.x++;
+      else s.library++;
+      if (it.collection) bump(col, it.collection);
+      else s.unsorted++;
+      if (!it.tags.length) s.noTags++;
+      it.tags.forEach((t) => bump(tag, t));
+      bump(typ, it.type);
+      bump(plat, it.platform);
+      if (it.favorite) s.favorites++;
+      if (!it.read) s.unread++;
+      if (it.note) s.notes++;
+      if (it.highlights) s.highlights++;
+      if (it.status === 'Broken') s.broken++;
+      if (it.remind) s.reminders++;
+    }
     const colorOf = (opts: any[], name: string) => opts.find((x: any) => x.name === name)?.color || 'default';
-    const colOpts = [...(lp[L.collection]?.select?.options || []), ...(xp[XP.collection]?.select?.options || [])];
-    const tagOpts = [...(lp[L.tags]?.multi_select?.options || []), ...(xp[XP.tags]?.multi_select?.options || [])];
     const facet = (m: Map<string, number>, opts: any[] = []) => [...m].map(([name, count]) => ({ name, count, color: colorOf(opts, name) })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-    s.collections = facet(col, colOpts).sort((a, b) => a.name.localeCompare(b.name));
-    s.tags = facet(tag, tagOpts);
+    s.collections = facet(col, props[L.collection]?.select?.options).sort((a, b) => a.name.localeCompare(b.name));
+    s.tags = facet(tag, props[L.tags]?.multi_select?.options);
     s.types = facet(typ);
     s.platforms = facet(plat);
     statsCache = s;
@@ -800,16 +697,16 @@ export async function stats({ fresh = false } = {}): Promise<Stats> {
 /** Call after writes: counts and select options (new tags/collections) may have changed. */
 export const invalidateStats = () => {
   statsCache = null;
-  delete schemaReady.library;
-  delete schemaReady.x;
+  schemaReady = null;
 };
 
 // ---------- link health ----------
 
 export async function checkLinks(limit = 120) {
-  await schemaOf('library');
+  await schemaOf();
+  // X posts need a login to check, and their content is archived anyway.
   const res = await notion().query(env().libraryDs, {
-    filter: { and: [{ property: L.url, url: { is_not_empty: true } }, { property: L.type, select: { does_not_equal: 'Note' } }] },
+    filter: { and: [{ property: L.url, url: { is_not_empty: true } }, { property: L.type, select: { does_not_equal: 'Note' } }, { property: L.type, select: { does_not_equal: X_TYPE } }] },
     sorts: [{ property: L.checked, direction: 'ascending' }],
     page_size: Math.min(limit, 100),
   });

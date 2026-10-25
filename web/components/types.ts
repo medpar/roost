@@ -1,6 +1,6 @@
 export type Item = {
   id: string;
-  db: 'library' | 'x';
+  db: 'library';
   url: string;
   title: string;
   excerpt: string;

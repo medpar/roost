@@ -11,7 +11,7 @@ export const maxDuration = 60;
 const INSTRUCTIONS = `Trove is the user's personal read-it-later library and archive (Raindrop-style) backed by Notion.
 Use it whenever the user shares a link or content and wants it kept ("save this", "bookmark", "read later", "remember this article", or simply sends a bare link with no other request).
 - save: store a URL (articles, YouTube, X/Reddit/Bluesky/Mastodon posts, GitHub repos, PDFs...) or plain text as a note. Trove fetches title, description, cover, the full article text / transcript, and never creates duplicates (saving again merges tags/notes).
-- search: find saved items. Query syntax: words, "exact phrase", -exclude, #tag, type:video|article|post|repo|note, site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, highlights:true, source:x.
+- search: find saved items. Query syntax: words, "exact phrase", -exclude, #tag, type:video|article|post|x|repo|note (type:x = X bookmarks), site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, highlights:true.
 - get_item returns the archived full content (Markdown) for summarizing or answering questions.
 Prefer existing collections and tags (see list_collections / list_tags) over inventing new ones; at most 5 tags per item. Report only what tool results confirm.`;
 

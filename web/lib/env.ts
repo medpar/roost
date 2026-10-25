@@ -1,7 +1,6 @@
 // Server configuration from environment variables.
-//   NOTION_TOKEN            Notion integration token with access to both databases
-//   TROVE_LIBRARY_DS        data source id of the Trove library database
-//   TROVE_X_DS              data source id of the X Bookmarks database
+//   NOTION_TOKEN            Notion integration token with access to the Trove database
+//   TROVE_LIBRARY_DS        data source id of the Trove database (X bookmarks included)
 //   TROVE_PASSWORD          password for the web app
 //   TROVE_SESSION_SECRET    random string used to sign session cookies
 //   TROVE_API_KEYS          "name:key,name:key" (the name is recorded as "Via" on saves)
@@ -23,8 +22,6 @@ function read() {
     notionToken: need('NOTION_TOKEN'),
     libraryDs: need('TROVE_LIBRARY_DS'),
     libraryDb: process.env.TROVE_LIBRARY_DB?.trim() || '',
-    xDs: need('TROVE_X_DS'),
-    xDb: process.env.TROVE_X_DB?.trim() || '',
     password: process.env.TROVE_PASSWORD?.trim() || '',
     sessionSecret: need('TROVE_SESSION_SECRET'),
     apiKeys: (process.env.TROVE_API_KEYS || '')

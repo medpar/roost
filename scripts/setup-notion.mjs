@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Create the Roost database in Notion and write extension/config.local.json
+// Create the Trove database in Notion and write extension/config.local.json
 // (git-ignored) so the unpacked extension starts already connected.
 //
-//   NOTION_TOKEN=ntn_... node scripts/setup-notion.mjs [--parent <page url|id>] [--title "X Bookmarks"]
+//   NOTION_TOKEN=ntn_... node scripts/setup-notion.mjs [--parent <page url|id>] [--title "Trove"]
 //
 // Without NOTION_TOKEN it uses the ntn CLI login (`ntn auth token`), then ~/.config/notion/api_key.
 // Without --parent it creates the database at the workspace top level.
@@ -44,7 +44,7 @@ if (existing) {
   console.log(`Using existing database ${db.url}`);
 } else {
   const parent = flag('parent') ? { pageId: parseNotionId(flag('parent')) } : { workspace: true };
-  db = await createDatabase(notion, parent, flag('title') || 'X Bookmarks');
+  db = await createDatabase(notion, parent, flag('title') || 'Trove');
   const views = await createViews(notion, db);
   console.log(`Created database ${db.url}${views.length ? ` with views: ${views.join(', ')}` : ''}`);
 }
@@ -54,7 +54,7 @@ const cfg = {
   databaseId: db.databaseId,
   dataSourceId: db.dataSourceId,
   databaseUrl: db.url,
-  databaseTitle: db.title || flag('title') || 'X Bookmarks',
+  databaseTitle: db.title || flag('title') || 'Trove',
 };
 const out = new URL('../extension/config.local.json', import.meta.url);
 writeFileSync(out, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });

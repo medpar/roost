@@ -12,7 +12,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 function netscape(items: Item[]) {
   const groups = new Map<string, Item[]>();
   for (const it of items) {
-    const k = it.collection || (it.db === 'x' ? 'X Bookmarks' : 'Unsorted');
+    const k = it.collection || (it.type === 'X bookmark' ? 'X bookmarks' : 'Unsorted');
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(it);
   }

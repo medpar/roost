@@ -18,7 +18,7 @@ A personal, Raindrop-style library that archives what you save (articles, videos
 ## What it does
 
 - **Archives the content, not just the link.** Articles are stored as clean text (Readability), YouTube videos with description and transcript, X/Reddit/Bluesky/Mastodon/Hacker News posts with their text and media, GitHub repos with their README, arXiv papers with abstract and the PDF, any PDF or image file. Covers and media are copied into Notion's file storage.
-- **Two Notion databases, one library.** `Trove` holds everything you save; `X Bookmarks` is filled automatically by the extension from your X bookmarks (full threads, reply context, media). The web app shows both together.
+- **One Notion database for everything.** `Trove` holds everything you save. Your X bookmarks live in it as their own type, **X bookmark**, filled automatically by the extension (full threads, reply context, media, likes and views).
 - **Never a duplicate.** URLs are normalized (tracking params, `www`, mobile hosts, `youtu.be`, `?s=20`, arXiv versions…). Saving again merges tags, notes and highlights instead.
 - **Organize like Raindrop.** Nested collections (`Dev/AI`), tags, favorites, read-later, notes, highlights, reminders, broken-link detection, bulk edit, four views (cards, list, headlines, moodboard), keyboard-first UI, light & dark themes.
 - **Search with operators:** `"phrase"`, `-word`, `#tag`, `-#tag`, `type:video`, `site:github.com`, `collection:"Dev/AI"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `source:x`, `match:OR`.
@@ -69,7 +69,7 @@ In the web app, open **Agent** (top bar, or ⌘K → “Ask the agent”). The p
 ```
 web/          Next.js 16 app on Vercel: UI, REST API, MCP server, cron (daily broken-link check)
   lib/extract.ts   URL -> metadata + archived Markdown (Readability, YouTube, FxTwitter, Reddit, Bluesky, Mastodon, HN, GitHub, arXiv, oEmbed)
-  lib/store.ts     Notion data layer: both databases, search -> filters, merged pagination, saves, highlights, stats
+  lib/store.ts     Notion data layer: search -> filters, pagination, saves, highlights, stats
   app/api/mcp      MCP tools for agents
 extension/    Brave/Chrome MV3 extension: save pages/links/images/highlights, browser bookmarks, X bookmarks sync (local, uses your x.com session)
 cli/          `trove` CLI and the local agent (Claude Code / Codex engines, bridge for the web app)
@@ -87,8 +87,8 @@ X's web API rotates query ids, feature flags and an `x-client-transaction-id`. T
 
 ## Self-hosting
 
-1. **Notion:** `node scripts/setup-trove.mjs` creates the library database (uses `NOTION_TOKEN` or the `ntn` CLI login); `node scripts/setup-notion.mjs` creates the X Bookmarks database.
-2. **Vercel:** create a project with root directory `web`, and set `NOTION_TOKEN`, `TROVE_LIBRARY_DS`, `TROVE_LIBRARY_DB`, `TROVE_X_DS`, `TROVE_X_DB`, `TROVE_PASSWORD`, `TROVE_SESSION_SECRET`, `TROVE_API_KEYS` (`Name:key,Name:key`), `TROVE_PUBLIC_URL`, `CRON_SECRET`. Deploy.
+1. **Notion:** `node scripts/setup-trove.mjs` creates the Trove database with every column, X bookmarks included (uses `NOTION_TOKEN` or the `ntn` CLI login). Coming from an older version with a separate X Bookmarks database? `node scripts/merge-x-into-trove.mjs` moves those pages in, keeping their content and media.
+2. **Vercel:** create a project with root directory `web`, and set `NOTION_TOKEN`, `TROVE_LIBRARY_DS`, `TROVE_LIBRARY_DB`, `TROVE_PASSWORD`, `TROVE_SESSION_SECRET`, `TROVE_API_KEYS` (`Name:key,Name:key`), `TROVE_PUBLIC_URL`, `CRON_SECRET`. Deploy.
 3. **Extension:** load `extension/` unpacked (or the release zip), then set the app URL + API key in its settings.
 4. **Shortcut:** `python3 scripts/make-shortcut.py https://your-app web/public/trove.shortcut` then `shortcuts sign --mode anyone …`.
 

@@ -144,7 +144,7 @@ function notionResponse(url, init) {
   if (path === '/data_sources/DS/query') {
     let rows = [...notion.pages.values()];
     const f = body.filter;
-    if (f?.property === P.id) rows = rows.filter((p) => p.postId === f.rich_text.equals);
+    if (f?.property === P.id) rows = rows.filter((p) => (f.rich_text.is_not_empty ? !!p.postId : p.postId === f.rich_text.equals));
     if (f?.property === P.unroll) rows = rows.filter((p) => p.properties[P.unroll]?.checkbox === true);
     const start = Number(body.start_cursor || 0);
     const slice = rows.slice(start, start + (body.page_size || 100));

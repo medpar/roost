@@ -32,7 +32,8 @@ export type Query = {
 const tokenRe = /(-?)(#?)(?:(\w+):)?(?:"([^"]+)"|(\S+))/g;
 
 const TYPE_ALIASES: Record<string, string> = {
-  article: 'Article', articles: 'Article', video: 'Video', videos: 'Video', post: 'Post', posts: 'Post', tweet: 'Post',
+  article: 'Article', articles: 'Article', video: 'Video', videos: 'Video', post: 'Post', posts: 'Post',
+  x: 'X bookmark', tweet: 'X bookmark', tweets: 'X bookmark', twitter: 'X bookmark', 'x bookmark': 'X bookmark', 'x bookmarks': 'X bookmark', 'x-bookmark': 'X bookmark',
   link: 'Link', links: 'Link', image: 'Image', images: 'Image', photo: 'Image', document: 'Document', doc: 'Document',
   pdf: 'Document', audio: 'Audio', podcast: 'Audio', repo: 'Repo', note: 'Note', notes: 'Note', product: 'Product', paper: 'Paper',
 };

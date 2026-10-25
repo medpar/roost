@@ -98,7 +98,7 @@ $('showUse').onclick = () => {
 async function createIn(parentId, label) {
   setMsg('dbMsg', `Creating database in ${label}…`);
   try {
-    const r = await send('createDatabase', { token: typedToken(), parentId, title: 'X Bookmarks' });
+    const r = await send('createDatabase', { token: typedToken(), parentId, title: 'Trove' });
     setMsg('dbMsg', 'Database created ✓ — archiving your bookmarks now.', 'ok');
     $('createBox').hidden = true;
     if (r.database?.url) window.open(r.database.url, '_blank');

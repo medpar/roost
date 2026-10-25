@@ -17,7 +17,8 @@ export type ItemHandlers = {
 type Props = ItemHandlers & { items: Item[]; view: View; selectedId: string | null; checked: Set<string> };
 
 const open = (it: Item, e: React.MouseEvent, h: ItemHandlers) => (e.metaKey || e.ctrlKey ? window.open(it.url || it.notionUrl, '_blank', 'noopener') : h.onOpen(it));
-const host = (it: Item) => (it.db === 'x' ? it.author.split(' ').pop() || 'x.com' : it.domain);
+const isX = (it: Item) => it.type === 'X bookmark';
+const host = (it: Item) => (isX(it) ? it.author.split(' ').pop() || 'x.com' : it.domain);
 
 function Cover({ it }: { it: Item }) {
   const [broken, setBroken] = useState(false);
@@ -36,7 +37,7 @@ function Cover({ it }: { it: Item }) {
 }
 
 function badge(it: Item) {
-  if (it.db === 'x' && it.stats?.thread && it.stats.thread > 1) return `Thread · ${it.stats.thread}`;
+  if (isX(it) && it.stats?.thread && it.stats.thread > 1) return `Thread · ${it.stats.thread}`;
   if (it.type === 'Video' && it.duration) return <><Play size={10} fill="currentColor" strokeWidth={0} />{fmtDuration(it.duration)}</>;
   if (it.readingTime) return `${it.readingTime} min`;
   return null;
@@ -113,7 +114,7 @@ function CheckBox({ checked, it, h }: { checked: boolean; it: Item; h: ItemHandl
 
 const CardView = memo(function CardView({ it, selected, checked, h }: { it: Item; selected: boolean; checked: boolean; h: ItemHandlers }) {
   // Text posts and notes without media read better as text than behind a placeholder cover.
-  const textual = !it.cover && (it.type === 'Post' || it.type === 'Note' || it.db === 'x');
+  const textual = !it.cover && (it.type === 'Post' || it.type === 'Note' || isX(it));
   const b = badge(it);
   const cls = `card ${textual ? 'textual' : ''} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''} ${it.read ? 'is-read' : ''}`;
   if (textual) {

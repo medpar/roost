@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { api, refreshAll } from '@/components/api';
 import { CodeBox as Code, useToast } from '@/components/ui';
 
-type Me = { publicUrl: string; notion: { library: string; x: string }; apiKeys: { name: string; key: string }[]; cron: boolean };
+type Me = { publicUrl: string; notion: { library: string }; apiKeys: { name: string; key: string }[]; cron: boolean };
 
 // ---------- import parsers ----------
 
@@ -270,8 +270,7 @@ export default function SettingsView() {
       <section>
         <h2>Notion</h2>
         <div className="row-actions-inline">
-          {me?.notion.library && <a className="btn" href={me.notion.library} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Library database</a>}
-          {me?.notion.x && <a className="btn" href={me.notion.x} target="_blank" rel="noreferrer"><ExternalLink size={15} /> X bookmarks database</a>}
+          {me?.notion.library && <a className="btn" href={me.notion.library} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Open the Trove database</a>}
         </div>
       </section>
     </div>

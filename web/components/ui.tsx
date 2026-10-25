@@ -179,11 +179,17 @@ const TYPE_ICON: Record<string, typeof Link2> = {
 };
 
 export function TypeIcon({ type, size = 14 }: { type: string; size?: number }) {
+  if (type === 'X bookmark')
+    return (
+      <span className="glyph" aria-hidden="true" style={{ display: 'inline-block', width: size, fontSize: Math.round(size * 0.82), lineHeight: `${size}px`, textAlign: 'center', fontWeight: 700, flex: 'none' }}>
+        𝕏
+      </span>
+    );
   const I = TYPE_ICON[type] || Link2;
   return <I size={size} aria-hidden="true" />;
 }
 
-export const TYPE_ORDER = ['Article', 'Video', 'Post', 'Link', 'Image', 'Document', 'Audio', 'Repo', 'Paper', 'Product', 'Note'];
+export const TYPE_ORDER = ['Article', 'Video', 'Post', 'X bookmark', 'Link', 'Image', 'Document', 'Audio', 'Repo', 'Paper', 'Product', 'Note'];
 
 export const PLATFORM_TINT: Record<string, string> = {
   YouTube: '#ff3b30', X: '#1d1b18', Reddit: '#ff5700', Bluesky: '#1185fe', Mastodon: '#6364ff', GitHub: '#6e40c9', 'Hacker News': '#ff6600',

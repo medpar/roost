@@ -40,6 +40,12 @@ test('properties match the schema and respect Notion limits', () => {
   assert.deepEqual(props[P.tags].multi_select, [{ name: 'AI  ML' }]);
   assert.ok(props[P.type].multi_select.some((o) => o.name === 'Poll'));
   assert.equal(props[P.media].files.length, 3);
+  // X bookmarks are Trove items of their own type, findable by URL key.
+  assert.equal(props[P.kind].select.name, 'X bookmark');
+  assert.equal(props[P.platform].select.name, 'X');
+  assert.equal(props[P.key].rich_text[0].text.content, `x.com/status/${big.id}`);
+  assert.equal(P.type, 'Post kind');
+  assert.equal(P.posted, 'Published');
 });
 
 test('blocks respect nesting depth, text and item limits (single post, thread, reply context)', () => {

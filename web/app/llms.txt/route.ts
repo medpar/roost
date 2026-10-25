@@ -19,7 +19,7 @@ Run \`trove --help\` for everything.
 
 ## REST
 - POST ${base}/api/items  JSON {url | text, title?, note?, tags?, collection?, highlight?, favorite?}  -> saves (deduplicated; saving again merges tags and notes). {items:[...]} saves up to 25 at once.
-- GET  ${base}/api/items?q=QUERY&limit=20  -> search. Syntax: words, "phrase", -word, #tag, -#tag, type:video|article|post|repo|note, site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, source:x, match:OR
+- GET  ${base}/api/items?q=QUERY&limit=20  -> search. Syntax: words, "phrase", -word, #tag, -#tag, type:video|article|post|x|repo|note (type:x = X bookmarks), site:domain, collection:"Name", is:fav, is:unread, created:>2025-01, source:x, match:OR
 - GET  ${base}/api/items/{id}?content=1  -> item + archived Markdown (article text, transcript, post)
 - PATCH ${base}/api/items/{id}  {tags, collection, note, favorite, read, title}
 - GET  ${base}/api/lookup?url=...  -> which URLs are already saved

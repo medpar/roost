@@ -219,16 +219,17 @@ async function importBrowserBookmarks() {
 async function loadLocalConfig() {
   const s = await S.getSettings();
   const wasConfigured = !!(s.notionToken && s.dataSourceId);
-  if (wasConfigured && s.troveKey) return false;
   try {
     const res = await fetch(chrome.runtime.getURL('config.local.json'));
     if (!res.ok) return false;
     const cfg = await res.json();
-    const keys = wasConfigured ? ['troveUrl', 'troveKey'] : ['notionToken', 'databaseId', 'dataSourceId', 'databaseUrl', 'databaseTitle', 'troveUrl', 'troveKey'];
-    const patch = Object.fromEntries(keys.filter((k) => cfg[k]).map((k) => [k, cfg[k]]));
+    // A local config is authoritative for where posts go, so a moved database is picked up on reload.
+    const target = ['notionToken', 'databaseId', 'dataSourceId', 'databaseUrl', 'databaseTitle'];
+    const keys = [...(!wasConfigured || (cfg.dataSourceId && cfg.dataSourceId !== s.dataSourceId) ? target : []), ...(s.troveKey ? [] : ['troveUrl', 'troveKey'])];
+    const patch = Object.fromEntries(keys.filter((k) => cfg[k] && cfg[k] !== s[k]).map((k) => [k, cfg[k]]));
     if (!Object.keys(patch).length) return false;
     await S.setSettings(patch);
-    await S.log('info', 'Loaded preconfigured connection from config.local.json');
+    await S.log('info', patch.dataSourceId && wasConfigured ? `Now saving X bookmarks to “${cfg.databaseTitle || 'Trove'}”` : 'Loaded preconfigured connection from config.local.json');
     return !wasConfigured && !!(patch.notionToken && patch.dataSourceId);
   } catch {
     return false;
@@ -413,9 +414,9 @@ async function handle(msg) {
     case 'createDatabase': {
       const token = msg.token || (await S.getSettings()).notionToken;
       const notion = new Notion(token);
-      const db = await createDatabase(notion, msg.parentId ? { pageId: parseNotionId(msg.parentId) } : { workspace: true }, msg.title || 'X Bookmarks');
+      const db = await createDatabase(notion, msg.parentId ? { pageId: parseNotionId(msg.parentId) } : { workspace: true }, msg.title || 'Trove');
       await createViews(notion, db);
-      await connect(token, db.databaseId, db.dataSourceId, db.url, msg.title || 'X Bookmarks');
+      await connect(token, db.databaseId, db.dataSourceId, db.url, msg.title || 'Trove');
       return { database: db };
     }
     case 'useDatabase': {

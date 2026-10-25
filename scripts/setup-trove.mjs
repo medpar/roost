@@ -4,7 +4,7 @@
 //   node scripts/setup-trove.mjs [--parent <page url|id>] [--title Trove]
 import { execFileSync } from 'node:child_process';
 import { Notion, parseNotionId } from '../extension/lib/notion.js';
-import { librarySchema, L } from '../web/lib/library-schema.js';
+import { createViews, librarySchema, L } from '../extension/lib/schema.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => (args.includes(`--${n}`) ? args[args.indexOf(`--${n}`) + 1] : undefined);
@@ -16,7 +16,7 @@ const db = await notion.req('POST', '/databases', {
   parent,
   title: [{ type: 'text', text: { content: flag('title') || 'Trove' } }],
   icon: { type: 'emoji', emoji: '🗂️' },
-  description: [{ type: 'text', text: { content: 'Everything saved with Trove — links, articles, videos, posts, repos, PDFs and notes, with an archived copy of the content.' } }],
+  description: [{ type: 'text', text: { content: 'Everything saved with Trove: links, articles, videos, posts, your X bookmarks, repos, PDFs and notes, with an archived copy of the content.' } }],
   initial_data_source: { properties: librarySchema() },
 });
 const ds = db.data_sources[0].id;
@@ -38,4 +38,5 @@ for (const v of views) {
     console.warn(`view ${v.name}: ${e.message}`);
   }
 }
+made.push(...(await createViews(notion, { databaseId: db.id, dataSourceId: ds })));
 console.log(JSON.stringify({ databaseId: db.id, dataSourceId: ds, url: db.url, views: made }, null, 2));

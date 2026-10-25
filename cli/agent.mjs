@@ -20,8 +20,8 @@ export function instructions(troveUrl) {
 
 You work on the library ONLY through the \`trove\` command (run it in the shell, one command per call, no pipes, no other programs). Add --json whenever you read data.
 
-  trove search [query] --json [-l N] [--unsorted] [--untagged] [-c Collection] [--source library|x] [--sort newest|oldest|title]
-      query syntax: words "phrase" -word #tag -#tag type:video site:github.com is:fav is:unread created:>2025-01 collection:"Dev/AI" match:OR
+  trove search [query] --json [-l N] [--unsorted] [--untagged] [-c Collection] [--sort newest|oldest|title]
+      query syntax: words "phrase" -word #tag -#tag type:video type:x (X bookmarks) site:github.com is:fav is:unread created:>2025-01 collection:"Dev/AI" match:OR
   trove get <id> --json [--content]        full item; --content adds the archived Markdown
   trove tags --json | trove collections --json
   trove update <id> [<id>…] [--title …] [--tags a,b] [--add-tags a,b] [--remove-tags a] [-c Collection | --unsorted] [-n note] [--fav|--unfav] [--read|--unread] --json

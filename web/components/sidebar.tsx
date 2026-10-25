@@ -1,6 +1,6 @@
 'use client';
 import {
-  AlarmClock, Archive, Bot, BookmarkCheck, Folder, FolderOpen, Hash, Heart, Highlighter, Inbox, Layers, Link2Off, Moon, NotebookPen, Search, Settings, Sun, Tags, X,
+  AlarmClock, Bot, BookmarkCheck, Folder, FolderOpen, Hash, Heart, Highlighter, Inbox, Layers, Link2Off, Moon, NotebookPen, Search, Settings, Sun, Tags, X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Scope, Stats } from './types';
@@ -18,7 +18,7 @@ type Props = {
   onClose: () => void;
 };
 
-const PLURAL: Record<string, string> = { Article: 'Articles', Video: 'Videos', Post: 'Posts', Link: 'Links', Image: 'Images', Document: 'Documents', Audio: 'Audio', Repo: 'Repos', Paper: 'Papers', Product: 'Products', Note: 'Notes' };
+const PLURAL: Record<string, string> = { 'X bookmark': 'X bookmarks', Article: 'Articles', Video: 'Videos', Post: 'Posts', Link: 'Links', Image: 'Images', Document: 'Documents', Audio: 'Audio', Repo: 'Repos', Paper: 'Papers', Product: 'Products', Note: 'Notes' };
 export const plural = (t: string) => PLURAL[t] || t;
 
 const TAG_PREVIEW = 12;
@@ -112,12 +112,6 @@ export function Sidebar({ stats, scope, onScope, onSearch, onAgent, theme, onThe
                 </button>
               );
             })}
-          </div>
-
-          <div className="side-section">
-            <div className="side-title">Sources</div>
-            <Item s={{ kind: 'source', value: 'library' }} icon={<Archive size={16} />} label="Library" count={stats?.library} />
-            <Item s={{ kind: 'source', value: 'x' }} icon={<span className="glyph" aria-hidden="true">𝕏</span>} label="X bookmarks" count={stats?.x} />
           </div>
 
           {types.length > 0 && (

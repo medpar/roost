@@ -2,7 +2,7 @@
 // Pure module (no chrome.*). Respects Notion limits: 2000 chars per text
 // object, 100 items per rich_text array, 2 nesting levels per request.
 
-import { P } from './schema.js';
+import { P, X_TYPE, xKey } from './schema.js';
 import { postTypes } from './parse.js';
 import { compactNumber, fmtDate, hostOf, truncate, tweetUrl } from './util.js';
 
@@ -275,6 +275,11 @@ export function buildProperties(t, ctx = {}) {
 
   const props = {
     [P.title]: { title: rt(titleFor(t)) },
+    [P.kind]: { select: { name: X_TYPE } },
+    [P.platform]: { select: { name: 'X' } },
+    [P.domain]: { rich_text: rt('x.com') },
+    [P.site]: { rich_text: rt('X') },
+    [P.key]: { rich_text: rt(xKey(t.id)) },
     [P.author]: { rich_text: rt(a.name || a.handle || '') },
     [P.handle]: { rich_text: a.handle ? rt('@' + a.handle, { link: `https://x.com/${a.handle}` }) : [] },
     [P.url]: { url: t.url },

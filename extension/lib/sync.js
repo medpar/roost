@@ -4,7 +4,7 @@
 
 import * as X from './x.js';
 import { Notion, NotionError } from './notion.js';
-import { P, ensureSchema } from './schema.js';
+import { P, X_TYPE, ensureSchema, xKey } from './schema.js';
 import { autoTags, buildBlocks, buildProperties, fullText, linkify, para, parseRules, rt, threadAppendBlocks, titleFor } from './render.js';
 import { bookmarkedAtFromSortIndex, looksLikeThread, postTypes } from './parse.js';
 import { chunk, tweetIdFromUrl } from './util.js';
@@ -164,6 +164,9 @@ function safeBlocks(blocks) {
 function minimalProps(t) {
   return {
     [P.title]: { title: rt(titleFor(t)) },
+    [P.kind]: { select: { name: X_TYPE } },
+    [P.platform]: { select: { name: 'X' } },
+    [P.key]: { rich_text: rt(xKey(t.id)) },
     [P.url]: { url: t.url },
     [P.id]: { rich_text: rt(t.id) },
     [P.text]: { rich_text: rt(t.text || '').slice(0, 100) },
@@ -473,7 +476,7 @@ export function rebuildIndex() {
     const c = await context();
     const map = {};
     let n = 0;
-    for await (const page of c.notion.queryAll(c.settings.dataSourceId, {})) {
+    for await (const page of c.notion.queryAll(c.settings.dataSourceId, { filter: { property: P.id, rich_text: { is_not_empty: true } } })) {
       const id = (page.properties?.[P.id]?.rich_text || []).map((t) => t.plain_text).join('').trim();
       if (id) map[id] = page.id;
       if (++n % 500 === 0) await S.updateState((s) => ({ ...s, running: { kind: 'index', startedAt: s.running?.startedAt, progress: n } }));

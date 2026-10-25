@@ -65,7 +65,7 @@ export function Palette({ stats, onClose, onScope, onOpen, onAdd, onAgent, onVie
       { id: 'unsorted', group: 'Go to', label: 'Unsorted', icon: <Inbox size={16} />, run: close(() => onScope({ kind: 'unsorted' })) },
       { id: 'unread', group: 'Go to', label: 'Read later', icon: <BookmarkCheck size={16} />, run: close(() => onScope({ kind: 'unread' })) },
       { id: 'fav', group: 'Go to', label: 'Favorites', icon: <Heart size={16} />, run: close(() => onScope({ kind: 'favorites' })) },
-      { id: 'x', group: 'Go to', label: 'X bookmarks', icon: <span className="glyph" style={{ width: 16, textAlign: 'center', fontWeight: 700 }} aria-hidden="true">𝕏</span>, run: close(() => onScope({ kind: 'source', value: 'x' })) },
+      { id: 'x', group: 'Go to', label: 'X bookmarks', icon: <span className="glyph" style={{ width: 16, textAlign: 'center', fontWeight: 700 }} aria-hidden="true">𝕏</span>, run: close(() => onScope({ kind: 'type', value: 'X bookmark' })) },
       { id: 'v-cards', group: 'View', label: 'Cards view', sub: '1', icon: <LayoutGrid size={16} />, run: close(() => onView('cards')) },
       { id: 'v-list', group: 'View', label: 'List view', sub: '2', icon: <List size={16} />, run: close(() => onView('list')) },
       { id: 'v-head', group: 'View', label: 'Headlines view', sub: '3', icon: <Rows3 size={16} />, run: close(() => onView('headlines')) },

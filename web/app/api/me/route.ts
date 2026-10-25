@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const e = env();
   return json({
     publicUrl: e.publicUrl,
-    notion: { library: notionUrl(e.libraryDb), x: notionUrl(e.xDb) },
+    notion: { library: notionUrl(e.libraryDb) },
     apiKeys: who.kind === 'session' ? e.apiKeys : e.apiKeys.filter((k) => k.name === who.via).map((k) => ({ name: k.name, key: '' })),
     cron: !!e.cronSecret,
   });

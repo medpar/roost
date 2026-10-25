@@ -22,8 +22,7 @@ Usage
           --via name        Label who saved it (shown as "Via")
   trove search [query…]                Search (newest first). Syntax: words "phrase" -word #tag
       -l, --limit N   --sort newest|oldest|title|published      type:video site:x.com is:fav is:unread
-      -c, --collection Name   --unsorted   --untagged            created:>2025-01 source:x
-      --source library|x
+      -c, --collection Name   --unsorted   --untagged            created:>2025-01 type:x (X bookmarks)
   trove get <id> [--content]           One item; --content prints the archived Markdown
   trove update <id…> [options]         --title "…"  --tags a,b (replace)  --add-tags a,b  --remove-tags a
                                        -c Name | --unsorted   -n "…"  --fav|--unfav  --read|--unread

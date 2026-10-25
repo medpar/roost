@@ -40,7 +40,7 @@ Full reference: `$TROVE_URL/llms.txt` and `$TROVE_URL/openapi.json`. An MCP serv
 1. **Bare link or "save this": save it right away.** Don't ask for confirmation. Pass any context the user gave as the note.
 2. **Tags:** reuse existing ones (`trove tags --json`) before inventing new ones; at most 5, lowercase, short. Only add tags or a collection when the user asked or it is obvious from their words.
 3. **Collections** are one per item and can be nested with `/` (for example `Dev/AI`). Prefer existing collections.
-4. **Search syntax:** words, `"exact phrase"`, `-exclude`, `#tag`, `-#tag`, `type:article|video|post|repo|note|paper|image|document`, `site:github.com`, `collection:"Name"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `source:x` (X bookmarks), `match:OR`.
+4. **Search syntax:** words, `"exact phrase"`, `-exclude`, `#tag`, `-#tag`, `type:article|video|post|x|repo|note|paper|image|document` (`type:x` = X bookmarks), `site:github.com`, `collection:"Name"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `match:OR`.
 5. **Answer from the archive:** to summarize or quote something saved, read it with `trove get <id> --content` instead of fetching the web again.
 6. **Report what the command confirmed:** the title, whether it was new or already saved, and the link `$TROVE_URL/?item=<id>`. Never claim a save that returned an error.
 7. **Delete** only on an explicit request (`trove rm <id>` moves it to Notion's trash).
