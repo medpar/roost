@@ -16,3 +16,13 @@ jobs:
       - name: Validate manifest
         run: node -e "const m=require('./extension/manifest.json'); if (m.manifest_version!==3) process.exit(1); console.log(m.name, m.version)"
       - run: npm test
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix web
+      - name: Typecheck web app
+        run: cd web && npx tsc --noEmit

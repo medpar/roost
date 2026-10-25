@@ -4,3 +4,7 @@ dist/
 .DS_Store
 # Local Notion credentials written by scripts/setup-notion.mjs — never commit
 extension/config.local.json
+.vercel
+.env*
+.cloudflare/
+.claude/

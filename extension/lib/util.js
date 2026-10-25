@@ -1,7 +1,7 @@
 // Small shared helpers. Pure functions only (safe to import from Node tests).
 
-// globalThis.__ROOST_TIME_SCALE__ lets tests run pacing/backoff faster.
-export const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (globalThis.__ROOST_TIME_SCALE__ ?? 1)));
+// globalThis.__TROVE_TIME_SCALE__ lets tests run pacing/backoff faster.
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (globalThis.__TROVE_TIME_SCALE__ ?? 1)));
 
 export const jitter = (base, spread = base) => base + Math.random() * spread;
 

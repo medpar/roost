@@ -1,0 +1,11 @@
+# Never upload local credentials
+**/config.local.json
+**/.env*
+# Not needed to build the web app
+dist
+docs
+test
+scripts
+.github
+web/.next
+**/node_modules

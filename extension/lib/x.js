@@ -2,7 +2,7 @@
 //
 // X's web API needs values that rotate (query ids, feature flags, and an
 // x-client-transaction-id bound to method + path). Instead of reverse
-// engineering them, Roost passively records the request templates your own
+// engineering them, Trove passively records the request templates your own
 // x.com tabs send (webRequest, no content scripts) and replays them from the
 // service worker with your session cookies. If nothing was captured yet, it
 // opens x.com once in a background tab to record one, then closes it.
@@ -306,7 +306,7 @@ function buildRequest(tpl, vars, dropVars, patches, ct0) {
 
 let rulesReady = null;
 // Never block a sync on this: without the rule X usually still answers.
-const ensureRules = () => (rulesReady ||= installHeaderRules().catch((e) => console.warn('[roost] header rule', e)));
+const ensureRules = () => (rulesReady ||= installHeaderRules().catch((e) => console.warn('[trove] header rule', e)));
 
 /**
  * Call a GraphQL operation using the freshest captured template.

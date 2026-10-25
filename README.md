@@ -1,111 +1,96 @@
-<p align="center"><img src="docs/icon.png" width="96" alt="Roost logo"></p>
+<p align="center"><img src="docs/icon.png" width="88" alt="Trove logo"></p>
 
-<h1 align="center">Roost</h1>
+<h1 align="center">Trove</h1>
 
-<p align="center"><b>Your X (Twitter) bookmarks, archived in Notion — threads, media and all.</b><br>
-Free, local, no API keys, no servers. If a post gets deleted, you still have it.</p>
+<p align="center"><b>Save anything, keep everything.</b><br>
+A personal, Raindrop-style library that archives what you save — articles, videos, social posts, repos, papers, notes, browser bookmarks and your X bookmarks — into Notion, so nothing is lost when the original disappears.</p>
 
 <p align="center">
-  <a href="https://github.com/medpar/roost/releases/latest">Download</a> ·
-  <a href="https://medpar.github.io/roost/">Website</a> ·
-  <a href="#install">Install</a> ·
-  <a href="#how-it-works">How it works</a>
+  <a href="https://trove.mariomedpar.com">App</a> ·
+  <a href="https://github.com/medpar/trove/releases/latest">Extension</a> ·
+  <a href="#save-from-everywhere">Capture</a> ·
+  <a href="#ai-agents">AI agents</a> ·
+  <a href="#self-hosting">Self-host</a>
 </p>
 
 ---
 
-Roost is a tiny Brave / Chrome extension (≈130 KB, zero dependencies, no build step). It syncs every post you bookmark on X into a Notion database, with the full text, author, stats, links, polls, quoted posts, whole threads, and **copies of the photos and videos stored in Notion**, so nothing disappears when the original does.
+## What it does
 
-## Features
+- **Archives the content, not just the link.** Articles are stored as clean text (Readability), YouTube videos with description and transcript, X/Reddit/Bluesky/Mastodon/Hacker News posts with their text and media, GitHub repos with their README, arXiv papers with abstract and the PDF, any PDF or image file. Covers and media are copied into Notion's file storage.
+- **Two Notion databases, one library.** `Trove` holds everything you save; `X Bookmarks` is filled automatically by the extension from your X bookmarks (full threads, reply context, media). The web app shows both together.
+- **Never a duplicate.** URLs are normalized (tracking params, `www`, mobile hosts, `youtu.be`, `?s=20`, arXiv versions…). Saving again merges tags, notes and highlights instead.
+- **Organize like Raindrop.** Nested collections (`Dev/AI`), tags, favorites, read-later, notes, highlights, reminders, broken-link detection, bulk edit, four views (cards, list, headlines, moodboard), keyboard-first UI, light & dark themes.
+- **Search with operators:** `"phrase"`, `-word`, `#tag`, `-#tag`, `type:video`, `site:github.com`, `collection:"Dev/AI"`, `is:fav`, `is:unread`, `created:>2025-01`, `highlights:true`, `source:x`, `match:OR`.
+- **Free.** Vercel Hobby + your Notion workspace + Cloudflare DNS. No paid APIs.
 
-- **Full backfill** — walks your entire bookmark list once (resumable, survives browser restarts and rate limits).
-- **Automatic sync** — checks every 30 min (configurable), and archives a post **within seconds of you bookmarking it** on x.com.
-- **Deletion-proof archive** — text, author, metrics, links and media are copied into Notion. Media is imported by Notion's servers (`external_url` uploads), so the extension never downloads files.
-- **Threads** — detects threads and unrolls the author's whole chain (following X's "show more" pages). Tick **Unroll thread** on any row in Notion to fetch one later.
-- **Reply context** — replies keep the post they answer.
-- **Rich pages** — long posts, X Articles, polls with results, link cards, quote posts with their media, community notes, alt text, and an optional raw-JSON copy.
-- **No duplicates, ever** — one page per post, enforced by a local index that is rebuilt from Notion on a new browser.
-- **Save anything** — right-click any post → *Save post to Notion*, the popup's *Save this post*, or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>. Works for posts you didn't bookmark too.
-- **Auto-tags** — rules like `AI: openai, @karpathy, arxiv.org, /gpt-?\d/i, type:Thread`.
-- **Notion views** — Gallery, Unread, Threads and Media views are created for you; there's a **Read** checkbox for a reading-list workflow.
-- **Optional inbox zero** — remove posts from your X bookmarks once they're safely archived (off by default).
+## Save from everywhere
 
-### What goes into Notion
+| Where | How |
+|---|---|
+| **Web app** (any OS) | Paste a link anywhere (⌘V), drop it on the window, or press <kbd>N</kbd>. Add many links at once, or a plain note. |
+| **Brave / Chrome / Edge / Arc** (macOS, Windows, Linux) | The extension: toolbar button, <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>, right-click page / link / image / **selection → highlight**. It reads the page you're on, so logged-in and paywalled pages are archived too. Imports all browser bookmarks (folders → collections) and can auto-save new ones. Keeps syncing your **X bookmarks** with threads and media. |
+| **iPhone, iPad, Mac** | The signed **“Save to Trove” Shortcut** (Share sheet in every app + macOS Share menu / Services). It asks for your API key once. |
+| **Android, Windows, ChromeOS** | Install the app (PWA) → it appears in the system share sheet. |
+| **Any browser** | Bookmarklet (Settings → drag “＋ Save to Trove”); selected text becomes a highlight. |
+| **AI agents & automations** | MCP server, REST API, skill file — see below. |
 
-| Column | | Column | |
-|---|---|---|---|
-| Title | first line / article title | Posted · Bookmarked · Saved | dates |
-| Author · Handle · Verified · Followers | who wrote it | Likes · Reposts · Replies · Quotes · Bookmarks · Views | snapshot at save time |
-| Text | full text (whole thread, quoted post) | Type | Text, Photo, Video, GIF, Link, Quote, Reply, Thread, Article, Poll, Long post |
-| URL · Post ID | original post | Media | original media links |
-| Links · Link · Hashtags · Mentions | entities | Quoted post · Reply to | related posts |
-| Tags · Read · Unroll thread | your workflow | Language · Client · Source | metadata |
+## AI agents
 
-The page body holds the readable post: author line, text with live links, archived photos/videos, link cards, polls, quote posts, reply context, the full thread, stats and a collapsed raw-data block.
+Trove exposes the same library to every assistant. Each agent gets its own API key, recorded as **Via** on what it saves.
 
-## Install
+- **MCP (recommended):** `https://trove.mariomedpar.com/api/mcp` (Streamable HTTP, `Authorization: Bearer <key>`). Tools: `save`, `save_many`, `search`, `get_item` (full archived Markdown), `update_item`, `add_highlight`, `check_saved`, `list_collections`, `list_tags`, `rename`, `delete_item`.
+  ```bash
+  claude mcp add --transport http --scope user trove https://trove.mariomedpar.com/api/mcp --header "Authorization: Bearer $TROVE_API_KEY"
+  ```
+  ```yaml
+  # Hermes Agent: ~/.hermes/config.yaml
+  mcp_servers:
+    trove:
+      url: "https://trove.mariomedpar.com/api/mcp"
+      headers:
+        Authorization: "Bearer ${TROVE_API_KEY}"
+  ```
+- **Skill:** [`skills/trove/SKILL.md`](skills/trove/SKILL.md) teaches any skills-aware agent (Claude Code, Hermes, …) when and how to save.
+- **REST:** `POST /api/items {url | text, tags, collection, note, highlight}`, `GET /api/items?q=…`, `GET /api/items/:id?content=1`. Docs for agents: [`/llms.txt`](https://trove.mariomedpar.com/llms.txt), [`/openapi.json`](https://trove.mariomedpar.com/openapi.json).
 
-1. Download `roost-vX.Y.Z.zip` from the [latest release](https://github.com/medpar/roost/releases/latest) and unzip it (or clone this repo and use the `extension/` folder).
-2. Open `brave://extensions` (or `chrome://extensions`), enable **Developer mode**, click **Load unpacked** and pick the folder.
-3. Make sure you're logged in to x.com in the same browser.
-4. Connect Notion in the settings page that opens:
-   - create a free internal integration at [notion.so/profile/integrations](https://www.notion.so/profile/integrations) and paste its secret,
-   - share a page with it (••• → Connections), then **Create new database…** and pick that page. Or connect an existing database.
+Message your assistant a link (e.g. Hermes on Telegram) and it lands in Trove.
 
-The full archive starts immediately. Watch progress in the toolbar popup.
+## Architecture
 
-### Shortcut for Notion CLI users
-
-If you use the [`ntn`](https://developers.notion.com) CLI, one command creates the database (top-level, with views) and pre-connects the extension through a git-ignored `extension/config.local.json`:
-
-```bash
-node scripts/setup-notion.mjs
+```
+web/          Next.js 16 app on Vercel — UI, REST API, MCP server, cron (daily broken-link check)
+  lib/extract.ts   URL -> metadata + archived Markdown (Readability, YouTube, FxTwitter, Reddit, Bluesky, Mastodon, HN, GitHub, arXiv, oEmbed)
+  lib/store.ts     Notion data layer: both databases, search -> filters, merged pagination, saves, highlights, stats
+  app/api/mcp      MCP tools for agents
+extension/    Brave/Chrome MV3 extension — save pages/links/images/highlights, browser bookmarks, X bookmarks sync (local, uses your x.com session)
+skills/trove/ Agent skill
+scripts/      Notion setup, Apple Shortcut builder, icons, live checks
 ```
 
-Then load the `extension/` folder. Options: `--parent <page url>`, `--database <existing db url>`, `--title "X Bookmarks"`, or `NOTION_TOKEN=…` to use another token.
+- Notion is the database: everything is yours, viewable and editable in Notion (Gallery, Read later, Favorites, Videos, Articles, Notes views are created for you).
+- Media is imported by Notion's servers (`external_url` uploads); the browser downloads nothing.
+- The X sync runs inside the extension with your own x.com session (no paid X API). See [How the X sync works](#how-the-x-sync-works).
 
-## How it works
+### How the X sync works
 
-X's official API charges for bookmarks, so Roost uses the same private web API x.com itself uses, with your logged-in session:
+X's web API rotates query ids, feature flags and an `x-client-transaction-id`. The extension records the request templates your own x.com tabs send (via `webRequest`, no content scripts) and also reads current query ids from x.com's bundle; it replays them from the service worker with your cookies. Bookmarks are archived within seconds of bookmarking on x.com and every 30 minutes; a full, resumable backfill covers your whole history.
 
-- **Learns, doesn't guess.** X rotates query IDs, feature flags and an `x-client-transaction-id` header bound to each endpoint. Roost passively records the request templates your own x.com tabs send (via `webRequest`, no content scripts) and replays them from the service worker with your cookies. It also reads current query IDs and feature names straight from x.com's own JS bundle (cached for a day). Only if neither works does it open x.com in a background tab for a few seconds to learn the request.
-- **Self-healing.** Missing feature flags reported by X are added automatically; stale templates are re-learned; rate limits pause and resume on their own.
-- **Light on resources.** An MV3 service worker that sleeps between alarms — no background page, no polling loops, no content scripts injected into x.com. Media goes straight from X's CDN to Notion.
-- **Safe writes.** A page is never created twice: a local id index (rebuilt from Notion when needed), in-flight guards, non-retried page creation, and a duplicate check before every retry. If Notion rejects some content, Roost falls back to a simpler version instead of skipping the post.
+## Self-hosting
 
-### Privacy
-
-Everything runs in your browser. Roost talks only to `x.com` (your session) and `api.notion.com` (your token). No analytics, no third-party servers. Your Notion token is stored in the extension's local storage.
-
-### Limits
-
-- X rate limits apply (Roost backs off automatically; a large backfill can take a while).
-- X may cap how far back the bookmark timeline goes; Roost archives everything X returns.
-- Media files larger than your Notion plan's upload limit are linked instead of copied (videos pick the best quality that fits the size cap in settings).
+1. **Notion:** `node scripts/setup-trove.mjs` creates the library database (uses `NOTION_TOKEN` or the `ntn` CLI login); `node scripts/setup-notion.mjs` creates the X Bookmarks database.
+2. **Vercel:** create a project with root directory `web`, and set `NOTION_TOKEN`, `TROVE_LIBRARY_DS`, `TROVE_LIBRARY_DB`, `TROVE_X_DS`, `TROVE_X_DB`, `TROVE_PASSWORD`, `TROVE_SESSION_SECRET`, `TROVE_API_KEYS` (`Name:key,Name:key`), `TROVE_PUBLIC_URL`, `CRON_SECRET`. Deploy.
+3. **Extension:** load `extension/` unpacked (or the release zip), then set the app URL + API key in its settings.
+4. **Shortcut:** `python3 scripts/make-shortcut.py https://your-app web/public/trove.shortcut` then `shortcuts sign --mode anyone …`.
 
 ## Development
 
 ```bash
-npm test                        # parser, renderer, Notion limits, end-to-end sync against mocks
-node scripts/live-check.mjs     # smoke test against the real Notion API (temporary database, then trashed)
-node scripts/package.mjs        # dist/roost-vX.Y.Z.zip
-node scripts/make-icons.mjs     # regenerate icons
-node scripts/import-export.mjs export.json [threads.json]   # bulk-import an exported bookmark list with the extension's pipeline
+npm test                          # extension + web logic, Notion limits, end-to-end sync against mocks
+npm --prefix web run dev          # web app on :3000 (needs web/.env.local)
+node scripts/live-check.mjs       # smoke test against the real Notion API
+node scripts/package.mjs          # extension zip
 ```
-
-```
-extension/
-  background.js    service worker: alarms, menus, shortcut, badge, messages
-  lib/x.js         X web API client (template capture + replay, self-healing)
-  lib/parse.js     timeline/thread parsing → normalized posts
-  lib/render.js    posts → Notion properties + blocks (respects API limits)
-  lib/notion.js    Notion client (rate limiting, retries, server-side media import)
-  lib/schema.js    database schema, auto-migration, views
-  lib/sync.js      backfill, incremental sync, threads, retries, dedupe
-  ui/              popup + settings
-```
-
-Releases are built by GitHub Actions when a `v*` tag is pushed.
 
 ## License
 

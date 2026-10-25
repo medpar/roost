@@ -1,8 +1,8 @@
 {
-  "name": "roost",
-  "version": "1.1.0",
+  "name": "trove",
+  "version": "2.0.0",
   "private": true,
-  "description": "Brave/Chrome extension that archives your X (Twitter) bookmarks, threads and media into Notion.",
+  "description": "Trove: save anything into a Notion-backed library — web app, browser extension, Apple Shortcut, MCP server for AI agents.",
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",

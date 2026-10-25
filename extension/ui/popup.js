@@ -1,6 +1,7 @@
 import { $, ago, el, explain, fmt, send, until } from './common.js';
 
-let activeUrl = null;
+let activeTab = null;
+let saved = null;
 
 async function render() {
   let s;
@@ -40,7 +41,7 @@ async function render() {
     alert.append('Connect your Notion database. ', el('button', { class: 'link', onclick: () => chrome.runtime.openOptionsPage() }, 'Open settings'));
   } else if (!loggedIn) {
     alert.hidden = false;
-    alert.append('Log in to ', el('a', { href: 'https://x.com/login', target: '_blank' }, 'x.com'), ' in this browser so Roost can read your bookmarks.');
+    alert.append('Log in to ', el('a', { href: 'https://x.com/login', target: '_blank' }, 'x.com'), ' in this browser so Trove can archive your X bookmarks.');
   } else if (state.lastError && Date.now() - state.lastError.t < 6 * 3600e3 && !job) {
     alert.hidden = false;
     alert.textContent = explain({ code: state.lastError.extra, msg: state.lastError.msg });
@@ -84,11 +85,25 @@ async function render() {
   );
 
   $('syncBtn').disabled = !configured || job === 'sync';
-  $('saveBtn').disabled = !configured || !activeUrl;
-  $('openDb').onclick = (e) => {
+  $('openApp').onclick = (e) => {
     e.preventDefault();
-    if (settings.databaseUrl) chrome.tabs.create({ url: settings.databaseUrl });
+    chrome.tabs.create({ url: settings.troveUrl || settings.databaseUrl });
   };
+  if (!settings.troveUrl) $('saveState').textContent = 'Connect the Trove app in Settings to save any page.';
+}
+
+function renderSave() {
+  const box = $('saveBox');
+  if (!activeTab || !/^https?:/.test(activeTab.url || '')) return (box.hidden = true);
+  box.hidden = false;
+  const host = new URL(activeTab.url).hostname;
+  $('pageIcon').src = `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
+  $('pageTitle').textContent = activeTab.title || host;
+  const b = $('saveBtn');
+  if (saved) {
+    b.textContent = 'Saved ✓ — open in Trove';
+    b.classList.remove('primary');
+  }
 }
 
 $('syncBtn').onclick = async () => {
@@ -108,17 +123,26 @@ $('syncBtn').onclick = async () => {
 
 $('saveBtn').onclick = async () => {
   const b = $('saveBtn');
+  const s = await send('status');
+  if (saved) {
+    chrome.tabs.create({ url: `${s.settings.troveUrl}/?item=${saved.id}` });
+    return window.close();
+  }
   b.disabled = true;
   b.textContent = 'Saving…';
   try {
-    const r = await send('saveUrl', { url: activeUrl });
-    b.textContent = r.status === 'exists' ? 'Already saved' : 'Saved ✓';
+    const r = await send('savePage', { tabId: activeTab.id });
+    saved = r.item || saved;
+    b.textContent = r.created === false || r.status === 'exists' ? 'Already in Trove ✓' : 'Saved ✓';
+    b.classList.remove('primary');
+    b.disabled = false;
+    if (r.item) saved = r.item;
   } catch (e) {
-    b.textContent = 'Failed';
+    b.textContent = 'Save to Trove';
+    b.disabled = false;
     $('alert').hidden = false;
     $('alert').textContent = explain(e);
   }
-  render();
 };
 
 $('openOptions').onclick = (e) => {
@@ -131,8 +155,17 @@ $('openLog').onclick = (e) => {
 };
 
 chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-  activeUrl = /^https:\/\/(x|twitter)\.com\/[^/]+\/status\/\d+/.test(tab?.url || '') ? tab.url : null;
+  activeTab = tab || null;
+  renderSave();
   render();
+  if (activeTab && /^https?:/.test(activeTab.url || '')) {
+    send('lookup', { url: activeTab.url })
+      .then((r) => {
+        saved = r.item;
+        renderSave();
+      })
+      .catch(() => {});
+  }
 });
 let queued = null;
 chrome.storage.onChanged.addListener((ch) => {

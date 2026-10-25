@@ -16,6 +16,9 @@ export const DEFAULTS = {
   rules: '',
   removeFromX: false,
   notify: true,
+  troveUrl: 'https://trove.mariomedpar.com',
+  troveKey: '',
+  syncBrowserBookmarks: false,
 };
 
 const local = () => chrome.storage.local;
@@ -64,7 +67,7 @@ export function updateState(fn) {
 export function log(level, msg, extra) {
   const entry = { t: Date.now(), level, msg: String(msg).slice(0, 500) };
   if (extra) entry.extra = String(extra).slice(0, 300);
-  if (level === 'error') console.warn('[roost]', msg, extra || '');
+  if (level === 'error') console.warn('[trove]', msg, extra || '');
   return updateState((s) => {
     s.log = [entry, ...s.log].slice(0, 120);
     if (level === 'error') s.lastError = entry;

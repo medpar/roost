@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { tweet, user, photo, video, entry, cursorEntry, moduleEntry, bookmarksResponse, detailResponse, addToModuleResponse } from './fixtures.mjs';
 import { validateBlocks, validateProperties } from './notion-limits.mjs';
 
-globalThis.__ROOST_TIME_SCALE__ = 0.001;
+globalThis.__TROVE_TIME_SCALE__ = 0.001;
 
 // ---------- fake chrome ----------
 const store = {};
@@ -189,7 +189,7 @@ function notionResponse(url, init) {
   return Response.json({ code: 'not_found', message: path }, { status: 404 });
 }
 
-// x.com's own bundle, which Roost reads to discover current query ids.
+// x.com's own bundle, which Trove reads to discover current query ids.
 const BUNDLE = 'https://abs.twimg.com/responsive-web/client-web/main.test.js';
 const bundleJs = 'e.exports={queryId:"QID_DISC",operationName:"TweetDetail",operationType:"query",metadata:{featureSwitches:["a","new_detail_flag"],fieldToggles:["withArticlePlainText","withGrokAnalyze"]}}';
 

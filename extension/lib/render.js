@@ -209,7 +209,7 @@ export function buildBlocks(t, ctx = {}) {
   const stats = statsLine(t);
   if (stats) out.push(stats);
   out.push(divider());
-  out.push(para([...gray(`Saved by Roost · ${fmtDate(ctx.savedAt || new Date().toISOString())} · `), ...rt('Open on X', { link: t.url, color: 'gray' })]));
+  out.push(para([...gray(`Saved by Trove · ${fmtDate(ctx.savedAt || new Date().toISOString())} · `), ...rt('Open on X', { link: t.url, color: 'gray' })]));
   if (raw) out.push(toggle(gray('Raw data (JSON)'), [block('code', { language: 'json', rich_text: rt(JSON.stringify(chain.length > 1 ? { post: t, thread: chain } : t)).slice(0, 30) })]));
   return out;
 }

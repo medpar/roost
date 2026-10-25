@@ -3,7 +3,7 @@
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
-const ORANGE = [232, 89, 12];
+const ORANGE = [210, 74, 18];
 const WHITE = [255, 255, 255];
 
 // Shapes in a 0..1 unit square.
@@ -39,13 +39,20 @@ function insideRibbon(x, y) {
 // Small orange dot (the "bird") inside the ribbon.
 const insideDot = (x, y) => (x - 0.5) ** 2 + (y - 0.4) ** 2 <= 0.075 ** 2;
 
-function color(x, y) {
+function color(x, y, maskable = false) {
+  if (maskable) {
+    // Full-bleed tile, ribbon shrunk into the 80% safe zone.
+    const s = 0.72;
+    const u = (x - 0.5) / s + 0.5;
+    const v = (y - 0.5) / s + 0.5;
+    return insideRibbon(u, v) && !insideDot(u, v) ? WHITE : ORANGE;
+  }
   if (!insideTile(x, y)) return null;
   if (insideRibbon(x, y) && !insideDot(x, y)) return WHITE;
   return ORANGE;
 }
 
-function render(size) {
+function render(size, maskable = false) {
   const ss = 4;
   const px = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
@@ -53,7 +60,7 @@ function render(size) {
       let r = 0, g = 0, b = 0, a = 0;
       for (let sy = 0; sy < ss; sy++) {
         for (let sx = 0; sx < ss; sx++) {
-          const c = color((pxl + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size);
+          const c = color((pxl + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size, maskable);
           if (!c) continue;
           r += c[0]; g += c[1]; b += c[2]; a++;
         }
@@ -104,4 +111,15 @@ const out = new URL('../extension/icons/', import.meta.url);
 mkdirSync(out, { recursive: true });
 for (const s of [16, 32, 48, 128]) writeFileSync(new URL(`icon${s}.png`, out), render(s));
 writeFileSync(new URL('../docs/icon.png', import.meta.url), render(256));
+
+const web = new URL('../web/public/icons/', import.meta.url);
+mkdirSync(web, { recursive: true });
+writeFileSync(new URL('icon-192.png', web), render(192));
+writeFileSync(new URL('icon-512.png', web), render(512));
+writeFileSync(new URL('maskable-512.png', web), render(512, true));
+writeFileSync(new URL('apple-touch-icon.png', web), render(180, true));
+writeFileSync(
+  new URL('logo.svg', web),
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#d24a12"/><path d="M30 25a5 5 0 0 1 5-5h30a5 5 0 0 1 5 5v57L50 66 30 82z" fill="#fff"/><circle cx="50" cy="40" r="7.5" fill="#d24a12"/></svg>\n`,
+);
 console.log('icons written');

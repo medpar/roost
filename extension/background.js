@@ -1,5 +1,7 @@
-// Roost service worker. Event-driven: it sleeps between alarms and only wakes
-// for scheduled syncs, x.com bookmark actions, menu clicks and UI messages.
+// Trove service worker. Event-driven: it sleeps between alarms and only wakes
+// for scheduled X syncs, x.com bookmark actions, saves, menu clicks and UI messages.
+// X posts are archived locally (richest data, uses your x.com session); everything
+// else goes to the Trove web app API.
 
 import * as X from './lib/x.js';
 import * as Sync from './lib/sync.js';
@@ -7,6 +9,7 @@ import * as S from './lib/store.js';
 import { Notion, parseNotionId } from './lib/notion.js';
 import { createDatabase, createViews, ensureSchema, resolveDataSource } from './lib/schema.js';
 import { tweetIdFromUrl } from './lib/util.js';
+import * as Trove from './lib/trove.js';
 
 // ---------- listeners (registered synchronously at startup) ----------
 
@@ -34,15 +37,31 @@ chrome.alarms.onAlarm.addListener(async ({ name }) => {
   if (name === 'tick') resumeIfNeeded();
 });
 
-chrome.contextMenus.onClicked.addListener((info) => {
-  const url = info.linkUrl && tweetIdFromUrl(info.linkUrl) ? info.linkUrl : info.pageUrl;
-  manualSave(url);
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  switch (info.menuItemId) {
+    case 'trove-link':
+      return tweetIdFromUrl(info.linkUrl) ? manualSave(info.linkUrl) : saveUrl({ url: info.linkUrl, title: info.selectionText || undefined });
+    case 'trove-image':
+      return saveUrl({ url: info.srcUrl, type: 'Image', note: info.pageUrl ? `From ${info.pageUrl}` : undefined });
+    case 'trove-selection':
+      return saveTab(tab, { highlight: info.selectionText });
+    default:
+      return saveTab(tab);
+  }
 });
 
 chrome.commands.onCommand.addListener(async (cmd) => {
   if (cmd !== 'save-current') return;
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  manualSave(tab?.url);
+  saveTab(tab);
+});
+
+chrome.bookmarks.onCreated.addListener(async (_id, node) => {
+  if (!node.url || !/^https?:/.test(node.url)) return;
+  const { syncBrowserBookmarks } = await S.getSettings();
+  if (!syncBrowserBookmarks) return;
+  const collection = await folderPath(node.parentId);
+  saveUrl({ url: node.url, title: node.title, collection: collection || undefined, source: 'Browser bookmarks' }, { quiet: true });
 });
 
 chrome.notifications.onClicked.addListener((id) => {
@@ -67,35 +86,125 @@ chrome.storage.onChanged.addListener((ch) => {
 
 function createMenus() {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'roost-link',
-      title: 'Save post to Notion (Roost)',
-      contexts: ['link'],
-      targetUrlPatterns: ['https://x.com/*/status/*', 'https://twitter.com/*/status/*'],
-    });
-    chrome.contextMenus.create({
-      id: 'roost-page',
-      title: 'Save this post to Notion (Roost)',
-      contexts: ['page'],
-      documentUrlPatterns: ['https://x.com/*/status/*'],
-    });
+    chrome.contextMenus.create({ id: 'trove-page', title: 'Save page to Trove', contexts: ['page', 'frame'] });
+    chrome.contextMenus.create({ id: 'trove-link', title: 'Save link to Trove', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'trove-image', title: 'Save image to Trove', contexts: ['image'] });
+    chrome.contextMenus.create({ id: 'trove-selection', title: 'Save selection as highlight', contexts: ['selection'] });
   });
 }
 
-/** Load the optional git-ignored config.local.json (preconfigured token + database). */
+// ---------- saving to the Trove web app ----------
+
+const SKIP_FOLDERS = /^(bookmarks bar|bookmarks toolbar|barra de marcadores|favorites bar|other bookmarks|otros marcadores|mobile bookmarks|marcadores del móvil|bookmarks menu)$/i;
+
+async function folderPath(id) {
+  const parts = [];
+  while (id && id !== '0') {
+    const [n] = await chrome.bookmarks.get(id).catch(() => []);
+    if (!n) break;
+    if (n.title && !SKIP_FOLDERS.test(n.title)) parts.unshift(n.title.replace(/\//g, '-'));
+    id = n.parentId;
+  }
+  return parts.join('/');
+}
+
+function flashBadge(text, color = '#2f7d4f') {
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color });
+  setTimeout(updateBadge, 2500);
+}
+
+async function itemLink(item) {
+  const { troveUrl } = await S.getSettings();
+  return troveUrl ? `${troveUrl.replace(/\/$/, '')}/?item=${item.id}` : item.notionUrl;
+}
+
+async function saveUrl(body, { quiet = false } = {}) {
+  chrome.action.setBadgeText({ text: '…' });
+  try {
+    const r = await Trove.save(body);
+    if (!quiet) notify(await itemLink(r.item), r.created ? 'Saved to Trove ✓' : 'Already in Trove', r.item.title || body.url);
+    flashBadge('✓');
+    return r;
+  } catch (e) {
+    notify('', 'Could not save to Trove', e.message || String(e));
+    updateBadge();
+    throw e;
+  }
+}
+
+/** Save the page in a tab: X posts locally, anything else via Trove with metadata read from the page. */
+async function saveTab(tab, extra = {}) {
+  if (!tab?.url || !/^https?:/.test(tab.url)) {
+    notify('', 'Trove', 'This page can’t be saved.');
+    return { status: 'invalid' };
+  }
+  if (tweetIdFromUrl(tab.url) && !extra.highlight) return manualSave(tab.url);
+  let captured = null;
+  try {
+    [{ result: captured }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: Trove.captureFromPage });
+  } catch { /* restricted page: the server fetches it instead */ }
+  return saveUrl({
+    url: tab.url,
+    title: captured?.meta?.title || tab.title,
+    meta: captured?.meta,
+    highlight: extra.highlight ?? (captured?.selection || undefined),
+    ...extra,
+  });
+}
+
+async function importBrowserBookmarks() {
+  const tree = await chrome.bookmarks.getTree();
+  const rows = [];
+  const walk = (nodes, path) => {
+    for (const n of nodes) {
+      if (n.url) {
+        if (/^https?:/.test(n.url)) rows.push({ url: n.url, title: n.title, collection: path.join('/') || undefined });
+      } else walk(n.children || [], n.title && !SKIP_FOLDERS.test(n.title) && n.id !== '0' ? [...path, n.title.replace(/\//g, '-')] : path);
+    }
+  };
+  walk(tree, []);
+  await S.updateState((s) => ({ ...s, bookmarksImport: { total: rows.length, done: 0, saved: 0, errors: 0, running: true, at: Date.now() } }));
+  const keep = setInterval(() => chrome.runtime.getPlatformInfo(), 20000);
+  try {
+    for (let i = 0; i < rows.length; i += 20) {
+      const batch = rows.slice(i, i + 20).map((r) => ({ ...r, source: 'Browser bookmarks', archive: false }));
+      let saved = 0;
+      let errors = 0;
+      try {
+        const r = await Trove.saveMany(batch);
+        saved = r.results.filter((x) => x.created).length;
+        errors = r.results.filter((x) => x.error).length;
+      } catch {
+        errors = batch.length;
+      }
+      await S.updateState((s) => ({ ...s, bookmarksImport: { ...s.bookmarksImport, done: Math.min(rows.length, i + batch.length), saved: s.bookmarksImport.saved + saved, errors: s.bookmarksImport.errors + errors } }));
+    }
+  } finally {
+    clearInterval(keep);
+    await S.updateState((s) => ({ ...s, bookmarksImport: { ...s.bookmarksImport, running: false } }));
+  }
+  const { bookmarksImport } = await S.getState();
+  notify('', 'Browser bookmarks imported', `${bookmarksImport.saved} new · ${bookmarksImport.total - bookmarksImport.saved - bookmarksImport.errors} already saved`);
+  return bookmarksImport;
+}
+
+/** Load the optional git-ignored config.local.json (preconfigured Notion + Trove connection).
+ *  Returns true only when Notion was not connected before (first run => start the archive). */
 async function loadLocalConfig() {
   const s = await S.getSettings();
-  if (s.notionToken && s.dataSourceId) return false;
+  const wasConfigured = !!(s.notionToken && s.dataSourceId);
+  if (wasConfigured && s.troveKey) return false;
   try {
     const res = await fetch(chrome.runtime.getURL('config.local.json'));
     if (!res.ok) return false;
     const cfg = await res.json();
-    const keys = ['notionToken', 'databaseId', 'dataSourceId', 'databaseUrl', 'databaseTitle'];
+    const keys = wasConfigured ? ['troveUrl', 'troveKey'] : ['notionToken', 'databaseId', 'dataSourceId', 'databaseUrl', 'databaseTitle', 'troveUrl', 'troveKey'];
     const patch = Object.fromEntries(keys.filter((k) => cfg[k]).map((k) => [k, cfg[k]]));
-    if (!patch.notionToken || !patch.dataSourceId) return false;
+    if (!Object.keys(patch).length) return false;
     await S.setSettings(patch);
-    await S.log('info', 'Loaded preconfigured Notion connection from config.local.json');
-    return true;
+    await S.log('info', 'Loaded preconfigured connection from config.local.json');
+    return !wasConfigured && !!(patch.notionToken && patch.dataSourceId);
   } catch {
     return false;
   }
@@ -160,9 +269,9 @@ function notify(id, title, message) {
 }
 
 const ACTIONABLE = {
-  not_logged_in: 'Log in to x.com in this browser so Roost can read your bookmarks.',
-  setup_needed: 'Open Roost settings to connect your Notion database.',
-  auth: 'X rejected the request. Open x.com once (Roost learns the request format from it).',
+  not_logged_in: 'Log in to x.com in this browser so Trove can read your bookmarks.',
+  setup_needed: 'Open Trove settings to connect your Notion database.',
+  auth: 'X rejected the request. Open x.com once (Trove learns the request format from it).',
 };
 
 async function notifyError(e) {
@@ -170,18 +279,18 @@ async function notifyError(e) {
   const code = e?.code || (e?.status === 401 ? 'notion_auth' : e?.status === 404 ? 'notion_404' : null);
   const msg =
     ACTIONABLE[code] ||
-    (code === 'notion_auth' ? 'Notion token was rejected. Update it in Roost settings.' : code === 'notion_404' ? 'Notion database not found or not shared with the integration.' : null);
+    (code === 'notion_auth' ? 'Notion token was rejected. Update it in Trove settings.' : code === 'notion_404' ? 'Notion database not found or not shared with the integration.' : null);
   if (!on || !msg) return;
   const st = await S.getState();
   const last = st.notified?.[code] || 0;
   if (Date.now() - last < 6 * 3600 * 1000) return;
   await S.updateState((s) => ({ ...s, notified: { ...(s.notified || {}), [code]: Date.now() } }));
-  notify(`err-${code}`, 'Roost needs attention', msg);
+  notify(`err-${code}`, 'Trove needs attention', msg);
 }
 
 async function manualSave(url) {
   if (!tweetIdFromUrl(url)) {
-    notify('', 'Roost', 'Open a post on x.com (or right-click a post link) to save it.');
+    notify('', 'Trove', 'Open a post on x.com (or right-click a post link) to save it.');
     return { status: 'invalid' };
   }
   chrome.action.setBadgeText({ text: '…' });
@@ -208,7 +317,7 @@ async function handle(msg) {
     case 'status': {
       const settings = await S.getSettings();
       return {
-        settings: { ...settings, notionToken: settings.notionToken ? '•••' + settings.notionToken.slice(-4) : '' },
+        settings: { ...settings, notionToken: settings.notionToken ? '•••' + settings.notionToken.slice(-4) : '', troveKey: settings.troveKey ? '•••' + settings.troveKey.slice(-4) : '' },
         hasToken: !!settings.notionToken,
         state: await S.getState(),
         job: Sync.currentJob(),
@@ -228,6 +337,21 @@ async function handle(msg) {
       return {};
     case 'saveUrl':
       return manualSave(msg.url);
+    case 'savePage': {
+      const tab = await chrome.tabs.get(msg.tabId);
+      return saveTab(tab);
+    }
+    case 'lookup':
+      return { item: await Trove.lookup(msg.url).catch(() => null) };
+    case 'importBookmarks':
+      importBrowserBookmarks().catch((e) => notify('', 'Bookmark import failed', e.message));
+      return {};
+    case 'setTrove': {
+      await S.setSettings({ troveUrl: msg.url.replace(/\/$/, ''), ...(msg.key ? { troveKey: msg.key } : {}) });
+      const h = await Trove.health();
+      if (!h.authenticated) throw new Error('That API key was rejected');
+      return { via: h.via };
+    }
     case 'rebuildIndex':
       return Sync.rebuildIndex();
     case 'captureNow':

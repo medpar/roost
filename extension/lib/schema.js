@@ -34,6 +34,9 @@ export const P = {
   replyTo: 'Reply to',
   source: 'Source',
   client: 'Client',
+  favorite: 'Favorite',
+  collection: 'Collection',
+  note: 'Note',
 };
 
 const opt = (name, color) => ({ name, color });
@@ -78,8 +81,11 @@ export function schemaProperties() {
     [P.followers]: num,
     [P.quoted]: { url: {} },
     [P.replyTo]: { url: {} },
-    [P.source]: { select: { options: [opt('Bookmark', 'blue'), opt('Manual', 'green')] } },
+    [P.source]: { select: { options: [opt('Bookmark', 'blue'), opt('Manual', 'green'), opt('Web', 'purple'), opt('Agent', 'orange')] } },
     [P.client]: { select: { options: [] } },
+    [P.favorite]: { checkbox: {} },
+    [P.collection]: { select: { options: [] } },
+    [P.note]: { rich_text: {} },
   };
 }
 
@@ -89,7 +95,7 @@ export async function createDatabase(notion, parent, title = 'X Bookmarks') {
     parent: parent.pageId ? { type: 'page_id', page_id: parent.pageId } : { type: 'workspace', workspace: true },
     title: [{ type: 'text', text: { content: title } }],
     icon: { type: 'emoji', emoji: '🐦' },
-    description: [{ type: 'text', text: { content: 'Archived by Roost — your X bookmarks, kept safe even if the posts get deleted.' } }],
+    description: [{ type: 'text', text: { content: 'Archived by Trove — your X bookmarks, kept safe even if the posts get deleted.' } }],
     initial_data_source: { properties: schemaProperties() },
   });
   const dataSourceId = db.data_sources?.[0]?.id;

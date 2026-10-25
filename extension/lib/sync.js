@@ -64,7 +64,7 @@ export class SetupError extends Error {
 
 async function context() {
   const settings = await S.getSettings();
-  if (!settings.notionToken || !settings.dataSourceId) throw new SetupError('Connect Notion in Roost settings first');
+  if (!settings.notionToken || !settings.dataSourceId) throw new SetupError('Connect Notion in Trove settings first');
   const notion = new Notion(settings.notionToken);
   if (schemaChecked !== settings.dataSourceId) {
     await ensureSchema(notion, settings.dataSourceId);

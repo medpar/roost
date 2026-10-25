@@ -2,16 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Roost</title>
+  <title>Trove</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     body { width: 340px; padding: 14px; display: grid; gap: 12px; }
     header { display: flex; align-items: center; gap: 8px; }
-    header h1 { font-size: 15px; }
-    .total { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+    header h1 { font-size: 16px; font-family: ui-serif, Georgia, serif; font-weight: 500; letter-spacing: -0.01em; }
+    .save { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+    .save .page { display: flex; gap: 8px; align-items: center; min-width: 0; }
+    .save .page img { width: 16px; height: 16px; border-radius: 4px; flex: none; }
+    .save .page span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .save button { width: 100%; height: 36px; }
+    .save .state { font-size: 12px; }
     .stats { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+    .total { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
     .stats .sub { text-align: right; font-size: 12px; }
-    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .bf { display: grid; gap: 7px; }
     .bf .row { font-size: 12px; }
     ul.recent { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -29,17 +34,23 @@
 <body>
   <header>
     <img class="logo" src="../icons/icon48.png" alt="" />
-    <h1>Roost</h1>
+    <h1>Trove</h1>
     <span class="spacer"></span>
     <span id="status" class="pill"><span class="dot"></span><span id="statusText">…</span></span>
   </header>
 
   <div id="alert" class="alert" hidden></div>
 
+  <section class="save" id="saveBox" hidden>
+    <div class="page"><img id="pageIcon" alt="" /><span id="pageTitle"></span></div>
+    <button class="primary" id="saveBtn">Save to Trove</button>
+    <div class="state muted" id="saveState">Selected text is saved as a highlight · <span class="kbd">Alt⇧S</span></div>
+  </section>
+
   <section class="stats">
     <div>
       <div class="total" id="total">–</div>
-      <div class="muted">posts archived</div>
+      <div class="muted">X posts archived</div>
     </div>
     <div class="sub muted" id="syncInfo"></div>
   </section>
@@ -51,17 +62,16 @@
   </section>
 
   <section class="actions">
-    <button class="primary" id="syncBtn">Sync now</button>
-    <button id="saveBtn" title="Save the post open in this tab (with its thread)">Save this post</button>
+    <button id="syncBtn">Sync X bookmarks</button>
   </section>
 
   <section id="recentWrap" hidden>
-    <h2>Recently saved</h2>
+    <h2>Recently archived from X</h2>
     <ul class="recent" id="recent"></ul>
   </section>
 
   <footer>
-    <a href="#" id="openDb">Open in Notion ↗</a>
+    <a href="#" id="openApp">Open Trove ↗</a>
     <a href="#" id="openOptions">Settings</a>
     <span class="spacer"></span>
     <a href="#" id="openLog">Activity</a>

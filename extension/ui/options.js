@@ -20,6 +20,11 @@ async function load() {
       : 'Not connected',
   );
 
+  if (document.activeElement !== $('troveUrl')) $('troveUrl').value = s.troveUrl || '';
+  $('troveKey').placeholder = s.troveKey ? 'Connected — paste to replace' : 'trv_… (Trove → Settings → API keys)';
+  $('syncBrowserBookmarks').checked = !!s.syncBrowserBookmarks;
+  const bi = state.bookmarksImport;
+  if (bi) $('bmMsg').textContent = `${bi.running ? 'Importing' : 'Imported'} ${fmt(bi.done)}/${fmt(bi.total)} · ${fmt(bi.saved)} new${bi.errors ? ` · ${bi.errors} errors` : ''}`;
   $('interval').value = String(s.intervalMin);
   for (const k of ['archiveMedia', 'replyContext', 'rawJson', 'notify', 'removeFromX']) $(k).checked = !!s[k];
   $('threads').value = s.threads;
@@ -127,6 +132,28 @@ $('useDb').onclick = async () => {
   } catch (e) {
     setMsg('dbMsg', e.message, 'err');
   }
+};
+
+// ---- Trove app ----
+
+$('saveTrove').onclick = async () => {
+  setMsg('troveMsg', 'Checking…');
+  try {
+    const key = $('troveKey').value.trim() || undefined;
+    const r = await send('setTrove', { url: $('troveUrl').value.trim() || 'https://trove.mariomedpar.com', key });
+    $('troveKey').value = '';
+    setMsg('troveMsg', `Connected ✓ (key “${r.via}”)`, 'ok');
+    load();
+  } catch (e) {
+    setMsg('troveMsg', e.message, 'err');
+  }
+};
+$('syncBrowserBookmarks').onchange = () => saveSettings({ syncBrowserBookmarks: $('syncBrowserBookmarks').checked });
+$('importBookmarks').onclick = async () => {
+  $('importBookmarks').disabled = true;
+  await send('importBookmarks');
+  $('bmMsg').textContent = 'Importing…';
+  setTimeout(() => ($('importBookmarks').disabled = false), 5000);
 };
 
 // ---- Sync ----

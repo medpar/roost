@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Roost settings</title>
+  <title>Trove settings</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     body { padding: 32px 16px 64px; }
@@ -46,13 +46,35 @@
   <header>
     <img src="../icons/icon128.png" alt="" />
     <div>
-      <h1>Roost</h1>
-      <p class="muted">Your X bookmarks, archived in Notion — threads, media and all.</p>
+      <h1>Trove</h1>
+      <p class="muted">Save anything, keep everything — pages, links, highlights, browser bookmarks and your X bookmarks.</p>
     </div>
   </header>
 
+  <section class="card" id="trove">
+    <h2>Trove app</h2>
+    <div class="field">
+      <label for="troveUrl">App URL</label>
+      <input id="troveUrl" type="text" placeholder="https://trove.mariomedpar.com" />
+    </div>
+    <div class="field">
+      <label for="troveKey">API key</label>
+      <div class="row">
+        <input id="troveKey" type="password" placeholder="trv_… (Trove → Settings → API keys)" autocomplete="off" />
+        <button id="saveTrove">Connect</button>
+      </div>
+      <div class="help">Pages, links, images and highlights are saved through your Trove app. <span id="troveMsg" class="msg"></span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Browser bookmarks</h2>
+    <label class="switch"><input type="checkbox" id="syncBrowserBookmarks" /><span><b>Save new browser bookmarks to Trove</b><span class="muted">Whenever you bookmark a page in this browser (⌘D), it's archived too. Folders become collections.</span></span></label>
+    <div class="actions"><button id="importBookmarks">Import all browser bookmarks</button><span id="bmMsg" class="msg muted"></span></div>
+  </section>
+
   <section class="card" id="notion">
-    <h2>1 · Notion</h2>
+    <h2>X bookmarks · Notion</h2>
     <div class="field">
       <label for="token">Integration token</label>
       <div class="row">
@@ -115,7 +137,7 @@
         <div id="indexInfo" class="muted"></div>
         <div class="actions" style="margin-top: 8px"><button id="rebuild">Rebuild index from Notion</button></div>
       </div>
-      <div class="help">Roost remembers every archived post id. Rebuilding re-reads the database (useful on a new browser).</div>
+      <div class="help">Trove remembers every archived post id. Rebuilding re-reads the database (useful on a new browser).</div>
     </div>
   </section>
 
@@ -124,7 +146,7 @@
     <div class="grid2">
       <label class="switch"><input type="checkbox" id="archiveMedia" /><span><b>Archive media in Notion</b><span class="muted">Copies photos, videos and GIFs into Notion, so they survive deletion on X.</span></span></label>
       <label class="switch"><input type="checkbox" id="replyContext" /><span><b>Keep reply context</b><span class="muted">For replies, also save the post being replied to.</span></span></label>
-      <label class="switch"><input type="checkbox" id="rawJson" /><span><b>Include raw data</b><span class="muted">A collapsed JSON copy of everything Roost captured.</span></span></label>
+      <label class="switch"><input type="checkbox" id="rawJson" /><span><b>Include raw data</b><span class="muted">A collapsed JSON copy of everything Trove captured.</span></span></label>
       <label class="switch"><input type="checkbox" id="notify" /><span><b>Notifications</b><span class="muted">For manual saves and problems that need you.</span></span></label>
     </div>
     <div class="field">
@@ -153,7 +175,7 @@
     <dl class="kv" id="xInfo"></dl>
     <label class="switch"><input type="checkbox" id="removeFromX" /><span><b>Remove from X bookmarks after archiving</b><span class="muted">Keeps your X bookmarks at inbox-zero. Only removes posts that were archived successfully.</span></span></label>
     <div class="actions"><button id="capture">Refresh X connection</button><button id="resetCapture" class="danger">Forget learned requests</button></div>
-    <div class="muted msg">Roost learns how to call X from your own x.com tabs (no passwords, no paid API). If nothing was learned yet, it briefly opens x.com in a background tab.</div>
+    <div class="muted msg">Trove learns how to call X from your own x.com tabs (no passwords, no paid API). If nothing was learned yet, it briefly opens x.com in a background tab.</div>
   </section>
 
   <section class="card" id="activity">

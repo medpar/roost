@@ -45,7 +45,7 @@ export function explain(err) {
     not_logged_in: 'Log in to x.com in this browser.',
     setup_needed: 'Connect your Notion database in Settings.',
     auth: 'X rejected the request. Open x.com once, then retry.',
-    rate_limited: 'X rate limit reached — Roost will continue automatically.',
+    rate_limited: 'X rate limit reached — Trove will continue automatically.',
   };
   return map[err?.code] || err?.msg || err?.message || String(err);
 }
